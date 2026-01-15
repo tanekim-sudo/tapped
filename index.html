@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tapped — Reachability Protocol</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Architects+Daughter&family=JetBrains+Mono:wght@400;500;700;800&display=swap');
+      
+      :root {
+        --paper: #ffffff;
+        --ink: #000000;
+        --accent: #ff4d00;
+        --grid: rgba(0, 0, 0, 0.04);
+      }
+      
+      body {
+        font-family: 'JetBrains Mono', monospace;
+        background-color: var(--paper);
+        color: var(--ink);
+        -webkit-font-smoothing: antialiased;
+        background-image: 
+          linear-gradient(var(--paper) 23px, var(--grid) 24px),
+          linear-gradient(90deg, var(--paper) 23px, var(--grid) 24px);
+        background-size: 24px 24px;
+      }
+
+      .handwritten {
+        font-family: 'Architects Daughter', cursive;
+        letter-spacing: -0.01em;
+      }
+
+      .brutal-card {
+        border: 1px solid var(--ink);
+        box-shadow: 0px 0px 0px 0px var(--ink);
+        background: white;
+        transition: all 0.2s cubic-bezier(0.05, 0.7, 0.1, 1);
+      }
+
+      .brutal-card:hover {
+        box-shadow: 4px 4px 0px 0px var(--ink);
+        transform: translate(-2px, -2px);
+      }
+
+      .btn-brutal {
+        border: 1px solid var(--ink);
+        padding: 6px 12px;
+        background: white;
+        font-weight: 700;
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        transition: all 0.1s ease;
+      }
+
+      .btn-brutal:hover:not(:disabled) {
+        background: var(--ink);
+        color: white;
+      }
+
+      .btn-brutal:active:not(:disabled) {
+        transform: scale(0.98);
+      }
+
+      .btn-brutal:disabled {
+        opacity: 0.15;
+        cursor: not-allowed;
+      }
+
+      .marker-highlight {
+        position: relative;
+        z-index: 1;
+      }
+
+      .marker-highlight::after {
+        content: '';
+        position: absolute;
+        bottom: 1px;
+        left: -2px;
+        width: calc(100% + 4px);
+        height: 6px;
+        background: var(--accent);
+        opacity: 0.1;
+        z-index: -1;
+      }
+
+      .fade-in {
+        animation: fadeIn 0.4s cubic-bezier(0.05, 0.7, 0.1, 1) forwards;
+      }
+
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(2px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      input, textarea {
+        background: transparent;
+        border: 1px solid #eee;
+        color: var(--ink);
+        padding: 10px;
+        outline: none;
+        width: 100%;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.8rem;
+      }
+      
+      input:focus, textarea:focus {
+        border-color: var(--accent);
+      }
+
+      ::-webkit-scrollbar { width: 4px; }
+      ::-webkit-scrollbar-track { background: var(--paper); }
+      ::-webkit-scrollbar-thumb { background: #eee; }
+      ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+    </style>
+    <script type="importmap">
+    {
+      "imports": {
+        "@google/genai": "https://esm.sh/@google/genai@^1.37.0",
+        "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+        "react/": "https://esm.sh/react@^19.2.3/",
+        "react": "https://esm.sh/react@^19.2.3"
+      }
+    }
+    </script>
+  <link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>

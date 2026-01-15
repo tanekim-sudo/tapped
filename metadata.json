@@ -1,0 +1,8 @@
+{
+  "name": "Tapped",
+  "description": "The networking protocol for high-bandwidth individuals. Optimized for reachability, throughput, and operational efficiency.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
