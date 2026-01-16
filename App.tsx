@@ -302,6 +302,7 @@ const App: React.FC = () => {
       bio: '',
       goals: [],
       availabilityRules: '',
+      location: '',
       openTo: [],
       isActive: false,
       photo: undefined

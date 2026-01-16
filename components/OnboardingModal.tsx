@@ -18,6 +18,7 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, userName 
       bio: bio.trim(),
       goals: [],
       availabilityRules: '',
+      location: '',
       openTo: [],
       isActive: true
     };

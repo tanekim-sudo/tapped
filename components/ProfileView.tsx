@@ -78,7 +78,21 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                       <div className={`w-2 h-2 ${activeProfileId === p.id ? 'bg-[#ff4d00]' : 'bg-gray-200'}`}></div>
                     </div>
                   </div>
-                  <p className="text-sm font-bold italic text-gray-800 leading-relaxed">"{p.bio}"</p>
+                  <p className="text-sm font-bold italic text-gray-800 leading-relaxed mb-2">"{p.bio}"</p>
+                  {(p.availabilityRules || p.location) && (
+                    <div className="space-y-1 mt-2">
+                      {p.availabilityRules && (
+                        <p className="text-[9px] font-bold text-gray-600">
+                          <span className="text-gray-400">Meetings: </span>{p.availabilityRules}
+                        </p>
+                      )}
+                      {p.location && (
+                        <p className="text-[9px] font-bold text-gray-600">
+                          <span className="text-gray-400">Location: </span>{p.location}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
               {p.openTo.length > 0 && (

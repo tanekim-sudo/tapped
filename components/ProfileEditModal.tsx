@@ -9,7 +9,8 @@ interface ProfileEditModalProps {
 
 const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ profile, onSave, onClose }) => {
   const [bio, setBio] = useState(profile.bio);
-  const [availability, setAvailability] = useState(profile.availabilityRules);
+  const [meetingTypes, setMeetingTypes] = useState(profile.availabilityRules);
+  const [location, setLocation] = useState(profile.location || '');
   const [openTo, setOpenTo] = useState<string[]>(profile.openTo);
   const [openToInput, setOpenToInput] = useState('');
   const [photo, setPhoto] = useState<string>(profile.photo || '');
@@ -41,7 +42,8 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ profile, onSave, on
     onSave({
       bio: bio.trim(),
       goals: [], // Always empty - networking is the sole goal
-      availabilityRules: availability.trim(),
+      availabilityRules: meetingTypes.trim(),
+      location: location.trim(),
       openTo,
       photo: photo || undefined
     });
@@ -126,16 +128,31 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ profile, onSave, on
             <p className="text-[8px] text-gray-400 mt-2">{bio.length}/300</p>
           </div>
 
-          {/* Availability */}
+          {/* Meeting Types */}
           <div>
             <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 block">
-              Availability
+              Meeting Types
             </label>
             <input
               type="text"
-              value={availability}
-              onChange={(e) => setAvailability(e.target.value)}
-              placeholder="e.g., 2 slots this week"
+              value={meetingTypes}
+              onChange={(e) => setMeetingTypes(e.target.value)}
+              placeholder="e.g., Coffee chats, Video calls, In-person"
+              className="w-full p-3 border border-gray-200 focus:border-[#ff4d00] outline-none"
+              maxLength={100}
+            />
+          </div>
+
+          {/* Location */}
+          <div>
+            <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 block">
+              Location
+            </label>
+            <input
+              type="text"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="e.g., Stanford, CA or Remote"
               className="w-full p-3 border border-gray-200 focus:border-[#ff4d00] outline-none"
               maxLength={100}
             />

@@ -38,6 +38,20 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ user, onConnect, canAfford })
           {primaryProfile?.bio}
         </p>
 
+        {(primaryProfile?.availabilityRules || primaryProfile?.location) && (
+          <div className="mb-3 space-y-1">
+            {primaryProfile.availabilityRules && (
+              <p className="text-[9px] font-bold text-gray-600">
+                <span className="text-gray-400">Meetings: </span>{primaryProfile.availabilityRules}
+              </p>
+            )}
+            {primaryProfile.location && (
+              <p className="text-[9px] font-bold text-gray-600">
+                <span className="text-gray-400">Location: </span>{primaryProfile.location}
+              </p>
+            )}
+          </div>
+        )}
 
         <div className="flex flex-wrap gap-3">
           {primaryProfile?.openTo.map(tag => (

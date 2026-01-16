@@ -19,7 +19,8 @@ export interface ContextProfile {
   type: ContextType;
   bio: string;
   goals: string[];
-  availabilityRules: string;
+  availabilityRules: string; // Meeting types (e.g., "Coffee chats, Video calls, In-person")
+  location: string; // Where you are located / where you can meet
   openTo: string[];
   isActive: boolean;
   photo?: string; // URL or base64 data URL for profile photo
