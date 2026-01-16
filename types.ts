@@ -22,6 +22,7 @@ export interface ContextProfile {
   availabilityRules: string;
   openTo: string[];
   isActive: boolean;
+  photo?: string; // URL or base64 data URL for profile photo
 }
 
 export interface Signal {

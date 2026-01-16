@@ -7,6 +7,7 @@ interface ProfileViewProps {
   onSelectProfile: (id: string) => void;
   onCreateProfile: () => void;
   onUpdateProfile: (id: string, updates: Partial<ContextProfile>) => void;
+  onEditProfile: (profile: ContextProfile) => void;
   activeSignal: Signal | undefined;
   onCreateSignal: () => void;
   onEditSignal: () => void;
@@ -18,6 +19,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
   activeProfileId, 
   onSelectProfile,
   onCreateProfile,
+  onEditProfile,
   activeSignal,
   onCreateSignal,
   onEditSignal,
@@ -44,20 +46,55 @@ const ProfileView: React.FC<ProfileViewProps> = ({
               onClick={() => onSelectProfile(p.id)}
               className={`brutal-card p-6 cursor-pointer transition-all ${activeProfileId === p.id ? 'border-[#ff4d00] !shadow-[4px_4px_0px_0px_#ff4d00]' : 'border-gray-200 opacity-60 hover:opacity-100'}`}
             >
-              <div className="flex justify-between items-start mb-4">
-                <span className={`text-[9px] font-black uppercase tracking-widest ${activeProfileId === p.id ? 'text-[#ff4d00]' : 'text-gray-400'}`}>
-                  {p.type} Node {activeProfileId === p.id && '(Active)'}
-                </span>
-                <div className={`w-2 h-2 ${activeProfileId === p.id ? 'bg-[#ff4d00]' : 'bg-gray-200'}`}></div>
+              <div className="flex items-start gap-4 mb-4">
+                {p.photo ? (
+                  <img 
+                    src={p.photo} 
+                    alt={p.type}
+                    className="w-16 h-16 rounded-full object-cover border-2 border-black flex-shrink-0"
+                  />
+                ) : (
+                  <div className="w-16 h-16 rounded-full border-2 border-gray-300 flex items-center justify-center bg-gray-50 flex-shrink-0">
+                    <span className="text-lg font-black text-gray-400">
+                      {p.type[0]}
+                    </span>
+                  </div>
+                )}
+                <div className="flex-grow">
+                  <div className="flex justify-between items-start mb-2">
+                    <span className={`text-[9px] font-black uppercase tracking-widest ${activeProfileId === p.id ? 'text-[#ff4d00]' : 'text-gray-400'}`}>
+                      {p.type} Node {activeProfileId === p.id && '(Active)'}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEditProfile(p);
+                        }}
+                        className="text-[8px] font-bold text-gray-400 hover:text-[#ff4d00] uppercase"
+                      >
+                        Edit
+                      </button>
+                      <div className={`w-2 h-2 ${activeProfileId === p.id ? 'bg-[#ff4d00]' : 'bg-gray-200'}`}></div>
+                    </div>
+                  </div>
+                  <p className="text-sm font-bold italic text-gray-800 leading-relaxed">"{p.bio}"</p>
+                </div>
               </div>
-              <p className="text-sm font-bold italic text-gray-800 leading-relaxed mb-6">"{p.bio}"</p>
-              <div className="flex flex-wrap gap-1.5 pt-4 border-t border-gray-50">
-                {p.openTo.map(o => (
-                  <span key={o} className="text-[8px] font-bold uppercase px-2 py-0.5 bg-gray-50 text-gray-400 border border-gray-100">
-                    {o}
-                  </span>
-                ))}
-              </div>
+              {(p.goals.length > 0 || p.openTo.length > 0) && (
+                <div className="flex flex-wrap gap-1.5 pt-4 border-t border-gray-50">
+                  {p.goals.map(goal => (
+                    <span key={goal} className="text-[8px] font-bold uppercase px-2 py-0.5 bg-gray-50 text-gray-500 border border-gray-100">
+                      {goal}
+                    </span>
+                  ))}
+                  {p.openTo.map(o => (
+                    <span key={o} className="text-[8px] font-bold uppercase px-2 py-0.5 bg-[#ff4d00]/10 text-[#ff4d00] border border-[#ff4d00]/20">
+                      {o}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>

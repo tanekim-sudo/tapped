@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { ContextType, ContextProfile } from '../types';
 
 interface OnboardingModalProps {
@@ -10,32 +10,18 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, userName 
   const [step, setStep] = useState(1);
   const [profileType, setProfileType] = useState<ContextType>(ContextType.PROFESSIONAL);
   const [bio, setBio] = useState('');
-  const [goals, setGoals] = useState<string[]>([]);
-  const [goalInput, setGoalInput] = useState('');
-  const [availability, setAvailability] = useState('');
-  const [openTo, setOpenTo] = useState<string[]>([]);
-  const [openToInput, setOpenToInput] = useState('');
+  const [photo, setPhoto] = useState<string>('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleAddGoal = () => {
-    if (goalInput.trim() && !goals.includes(goalInput.trim())) {
-      setGoals([...goals, goalInput.trim()]);
-      setGoalInput('');
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPhoto(reader.result as string);
+      };
+      reader.readAsDataURL(file);
     }
-  };
-
-  const handleRemoveGoal = (goal: string) => {
-    setGoals(goals.filter(g => g !== goal));
-  };
-
-  const handleAddOpenTo = () => {
-    if (openToInput.trim() && !openTo.includes(openToInput.trim())) {
-      setOpenTo([...openTo, openToInput.trim()]);
-      setOpenToInput('');
-    }
-  };
-
-  const handleRemoveOpenTo = (item: string) => {
-    setOpenTo(openTo.filter(o => o !== item));
   };
 
   const handleComplete = () => {
@@ -43,10 +29,11 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, userName 
       id: `profile_${Date.now()}`,
       type: profileType,
       bio: bio.trim(),
-      goals,
-      availabilityRules: availability.trim(),
-      openTo,
-      isActive: true
+      goals: [],
+      availabilityRules: '',
+      openTo: [],
+      isActive: true,
+      photo: photo || undefined
     };
     onComplete(profile);
   };
@@ -57,10 +44,6 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, userName 
         return profileType !== null;
       case 2:
         return bio.trim().length >= 20;
-      case 3:
-        return goals.length > 0;
-      case 4:
-        return availability.trim().length > 0;
       default:
         return true;
     }
@@ -72,13 +55,13 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, userName 
         {/* Progress Bar */}
         <div className="mb-8">
           <div className="flex justify-between mb-2">
-            <span className="text-[9px] font-black uppercase text-gray-400">Step {step} of 5</span>
-            <span className="text-[9px] font-black uppercase text-[#ff4d00]">{Math.round((step / 5) * 100)}%</span>
+            <span className="text-[9px] font-black uppercase text-gray-400">Step {step} of 3</span>
+            <span className="text-[9px] font-black uppercase text-[#ff4d00]">{Math.round((step / 3) * 100)}%</span>
           </div>
           <div className="w-full bg-gray-100 h-1">
             <div 
               className="bg-[#ff4d00] h-1 transition-all duration-300"
-              style={{ width: `${(step / 5) * 100}%` }}
+              style={{ width: `${(step / 3) * 100}%` }}
             />
           </div>
         </div>
@@ -88,15 +71,17 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, userName 
           {step === 1 && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-3xl font-black mb-2 uppercase tracking-tighter">Welcome, {userName}!</h2>
-                <p className="text-sm text-gray-500 leading-relaxed">
-                  Let&apos;s set up your first networking identity. You can create multiple profiles later.
-                </p>
+                <h2 className="text-3xl font-black mb-3 uppercase tracking-tighter">Create Your First Profile</h2>
+                <div className="p-4 bg-[#ff4d00]/5 border-l-4 border-[#ff4d00] mb-6">
+                  <p className="text-sm font-bold text-gray-700 leading-relaxed">
+                    This is just your <span className="text-[#ff4d00]">first networking identity</span>. You can create different profiles for different needs later (Professional, Builder, Learner, etc.). Each profile operates independently.
+                  </p>
+                </div>
               </div>
               
               <div>
                 <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-3 block">
-                  Choose Your Identity Type
+                  Choose Identity Type
                 </label>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   {Object.values(ContextType).map(type => (
@@ -111,11 +96,11 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, userName 
                     >
                       <div className="text-xs font-black uppercase mb-1">{type}</div>
                       <div className="text-[10px] text-gray-500">
-                        {type === ContextType.PROFESSIONAL && 'Career, business, networking'}
-                        {type === ContextType.BUILDER && 'Projects, startups, building'}
-                        {type === ContextType.LEARNER && 'Learning, mentorship, growth'}
-                        {type === ContextType.ANONYMOUS && 'Private, sensitive topics'}
-                        {type === ContextType.LOCAL && 'Community, local connections'}
+                        {type === ContextType.PROFESSIONAL && 'Career, business'}
+                        {type === ContextType.BUILDER && 'Projects, startups'}
+                        {type === ContextType.LEARNER && 'Learning, growth'}
+                        {type === ContextType.ANONYMOUS && 'Private topics'}
+                        {type === ContextType.LOCAL && 'Local community'}
                       </div>
                     </button>
                   ))}
@@ -127,9 +112,9 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, userName 
           {step === 2 && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-3xl font-black mb-2 uppercase tracking-tighter">Tell Your Story</h2>
+                <h2 className="text-3xl font-black mb-2 uppercase tracking-tighter">Your Bio</h2>
                 <p className="text-sm text-gray-500 leading-relaxed">
-                  Write a brief bio that explains who you are and what you&apos;re working on. Be specific.
+                  Write a brief bio. Be specific about who you are and what you&apos;re working on.
                 </p>
               </div>
               
@@ -152,131 +137,57 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, userName 
           {step === 3 && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-3xl font-black mb-2 uppercase tracking-tighter">What Are Your Goals?</h2>
+                <h2 className="text-3xl font-black mb-2 uppercase tracking-tighter">Profile Photo (Optional)</h2>
                 <p className="text-sm text-gray-500 leading-relaxed">
-                  What do you want to achieve through networking? Add specific goals.
+                  Add a photo for this profile. You can skip this and add it later.
                 </p>
               </div>
               
-              <div>
-                <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 block">
-                  Goals
-                </label>
-                <div className="flex gap-2 mb-3">
+              <div className="flex flex-col items-center gap-4">
+                <div className="relative">
+                  {photo ? (
+                    <img 
+                      src={photo} 
+                      alt="Profile" 
+                      className="w-32 h-32 rounded-full object-cover border-4 border-black"
+                    />
+                  ) : (
+                    <div className="w-32 h-32 rounded-full border-4 border-gray-200 flex items-center justify-center bg-gray-50">
+                      <span className="text-4xl font-black text-gray-300">
+                        {userName.split(' ').map(n => n[0]).join('')}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="flex gap-3">
                   <input
-                    type="text"
-                    value={goalInput}
-                    onChange={(e) => setGoalInput(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleAddGoal()}
-                    placeholder="e.g., Code reviews, Career advice"
-                    className="flex-1 p-3 border border-gray-200 focus:border-[#ff4d00] outline-none"
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoUpload}
+                    className="hidden"
                   />
                   <button
-                    onClick={handleAddGoal}
-                    className="btn-brutal !bg-black !text-white px-4"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="btn-brutal !bg-black !text-white"
                   >
-                    Add
+                    {photo ? 'Change Photo' : 'Upload Photo'}
                   </button>
+                  {photo && (
+                    <button
+                      onClick={() => setPhoto('')}
+                      className="btn-brutal !bg-white !text-gray-400"
+                    >
+                      Remove
+                    </button>
+                  )}
                 </div>
-                {goals.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {goals.map(goal => (
-                      <span
-                        key={goal}
-                        className="inline-flex items-center gap-2 px-3 py-1 bg-gray-50 border border-gray-200 text-xs"
-                      >
-                        {goal}
-                        <button
-                          onClick={() => handleRemoveGoal(goal)}
-                          className="text-red-400 hover:text-red-600"
-                        >
-                          ×
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {step === 4 && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-3xl font-black mb-2 uppercase tracking-tighter">Set Availability</h2>
-                <p className="text-sm text-gray-500 leading-relaxed">
-                  How available are you? Be honest. &quot;2 slots this week&quot; is better than vague.
-                </p>
-              </div>
-              
-              <div>
-                <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 block">
-                  Availability Rules
-                </label>
-                <textarea
-                  value={availability}
-                  onChange={(e) => setAvailability(e.target.value)}
-                  placeholder="e.g., 30 mins blocks, Tue/Thu eves only. Max 2 conversations per week."
-                  className="w-full p-4 border border-gray-200 focus:border-[#ff4d00] outline-none h-24 resize-none"
-                  maxLength={200}
-                />
-                <p className="text-[8px] text-gray-400 mt-2">{availability.length}/200 characters</p>
-              </div>
-            </div>
-          )}
-
-          {step === 5 && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-3xl font-black mb-2 uppercase tracking-tighter">What Are You Open To?</h2>
-                <p className="text-sm text-gray-500 leading-relaxed">
-                  What types of interactions are you open to? This helps others know how to reach out.
-                </p>
-              </div>
-              
-              <div>
-                <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 block">
-                  Open To (optional)
-                </label>
-                <div className="flex gap-2 mb-3">
-                  <input
-                    type="text"
-                    value={openToInput}
-                    onChange={(e) => setOpenToInput(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleAddOpenTo()}
-                    placeholder="e.g., Pitch feedback, Mentorship, Introductions"
-                    className="flex-1 p-3 border border-gray-200 focus:border-[#ff4d00] outline-none"
-                  />
-                  <button
-                    onClick={handleAddOpenTo}
-                    className="btn-brutal !bg-black !text-white px-4"
-                  >
-                    Add
-                  </button>
-                </div>
-                {openTo.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {openTo.map(item => (
-                      <span
-                        key={item}
-                        className="inline-flex items-center gap-2 px-3 py-1 bg-gray-50 border border-gray-200 text-xs"
-                      >
-                        {item}
-                        <button
-                          onClick={() => handleRemoveOpenTo(item)}
-                          className="text-red-400 hover:text-red-600"
-                        >
-                          ×
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
               </div>
 
-              <div className="p-4 bg-gray-50 border-l-4 border-[#ff4d00]">
+              <div className="p-4 bg-gray-50 border-l-4 border-[#ff4d00] mt-6">
                 <p className="text-xs font-bold text-gray-700">
-                  Ready to join Tapped! Your profile will be visible to others in the network.
+                  You&apos;re all set! You can add goals, availability, and more details later in your profile settings. Create additional profiles anytime from the Nodes tab.
                 </p>
               </div>
             </div>
@@ -293,7 +204,7 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, userName 
             Back
           </button>
           
-          {step < 5 ? (
+          {step < 3 ? (
             <button
               onClick={() => setStep(step + 1)}
               disabled={!isStepValid()}
@@ -304,10 +215,9 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, userName 
           ) : (
             <button
               onClick={handleComplete}
-              disabled={!isStepValid()}
-              className="btn-brutal !bg-[#ff4d00] !text-white disabled:opacity-30 disabled:cursor-not-allowed"
+              className="btn-brutal !bg-[#ff4d00] !text-white"
             >
-              Complete Setup
+              Create Profile
             </button>
           )}
         </div>

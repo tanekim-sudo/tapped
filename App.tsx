@@ -8,6 +8,7 @@ import GroundRules from './components/GroundRules';
 import LoginModal from './components/LoginModal';
 import OnboardingModal from './components/OnboardingModal';
 import Walkthrough from './components/Walkthrough';
+import ProfileEditModal from './components/ProfileEditModal';
 import { getIntroSuggestion } from './services/claudeService';
 import { authService } from './services/authService';
 import { dataService } from './services/dataService';
@@ -35,6 +36,7 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showWalkthrough, setShowWalkthrough] = useState(false);
+  const [editingProfile, setEditingProfile] = useState<ContextProfile | null>(null);
 
   // Initialize user and data on mount
   useEffect(() => {
@@ -299,7 +301,8 @@ const App: React.FC = () => {
       goals: [],
       availabilityRules: '',
       openTo: [],
-      isActive: false
+      isActive: false,
+      photo: undefined
     };
     setUser(prev => ({
       ...prev,
@@ -537,6 +540,7 @@ const App: React.FC = () => {
                 onSelectProfile={setActiveProfileId}
                 onCreateProfile={handleCreateProfile}
                 onUpdateProfile={handleUpdateProfile}
+                onEditProfile={(profile) => setEditingProfile(profile)}
                 activeSignal={activeSignal}
                 onCreateSignal={() => {
                   setEditingSignal(null);
@@ -749,6 +753,18 @@ const App: React.FC = () => {
         <OnboardingModal
           userName={user.name}
           onComplete={handleOnboardingComplete}
+        />
+      )}
+
+      {/* Profile Edit Modal */}
+      {editingProfile && user && (
+        <ProfileEditModal
+          profile={editingProfile}
+          onSave={(updates) => {
+            handleUpdateProfile(editingProfile.id, updates);
+            setEditingProfile(null);
+          }}
+          onClose={() => setEditingProfile(null)}
         />
       )}
 

@@ -15,9 +15,17 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ user, onConnect, canAfford })
     <div className="brutal-card p-5 mb-3 bg-white hover:bg-gray-50/50 flex flex-col sm:flex-row gap-6 items-center border-gray-100">
       <div className="flex-grow w-full">
         <div className="flex items-center gap-3 mb-3">
-          <div className="w-8 h-8 border border-black flex items-center justify-center font-black text-[9px] bg-white">
-            {initials}
-          </div>
+          {primaryProfile?.photo ? (
+            <img 
+              src={primaryProfile.photo} 
+              alt={user.name}
+              className="w-8 h-8 rounded-full object-cover border border-black"
+            />
+          ) : (
+            <div className="w-8 h-8 border border-black flex items-center justify-center font-black text-[9px] bg-white rounded-full">
+              {initials}
+            </div>
+          )}
           <div>
             <h4 className="font-bold text-xs uppercase tracking-tight leading-none mb-1">{user.name}</h4>
             <span className="text-[8px] font-black uppercase text-gray-300 tracking-widest">
