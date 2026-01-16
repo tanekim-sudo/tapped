@@ -410,7 +410,6 @@ const App: React.FC = () => {
       <nav id="nav-main" className="w-full lg:w-60 border-b lg:border-b-0 lg:border-r border-gray-100 p-8 lg:p-8 lg:sticky lg:top-0 lg:h-screen flex flex-col z-40 bg-white">
         <div className="mb-12">
           <h1 className="text-xl font-black italic tracking-tighter uppercase leading-none">Tapped.</h1>
-          <p className="text-[9px] font-bold text-[#ff4d00] uppercase tracking-[0.2em] mt-2">Protocol 0.5</p>
         </div>
 
         <div id="nav-tabs" className="flex lg:flex-col gap-4 lg:gap-6 flex-wrap lg:flex-grow">
