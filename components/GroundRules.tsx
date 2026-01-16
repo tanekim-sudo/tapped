@@ -42,26 +42,6 @@ const rules = [
     annotation: "Relay node."
   },
   {
-    title: "Time Is Explicit",
-    content: "Availability is always visible. '2 convos this week', '15 min only'. Prevents burnout.",
-    annotation: "Hard caps."
-  },
-  {
-    title: "Follow-Ups Are Lightweight",
-    content: "One follow-up max. No 'just bumping this' culture. No guilt-based nudging. If it doesn't move, it closes.",
-    annotation: "Clean exits."
-  },
-  {
-    title: "Outcome > Rapport",
-    content: "You're not here to vibe. You're here to move things forward. Rapport emerges from usefulness.",
-    annotation: "Utility wins."
-  },
-  {
-    title: "End Threads Cleanly",
-    content: "Every interaction ends with: 'Scheduled', 'Introduced', or 'Closed'. Create operational closure.",
-    annotation: "Cycle completion."
-  },
-  {
     title: "Speed Over Polish",
     content: "Fast replies beat perfect messages. If it takes more than a few seconds to send, it's wrong.",
     annotation: "Synchronous logic."

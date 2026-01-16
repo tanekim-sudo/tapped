@@ -1,20 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, ContextProfile, Signal, NetworkConnection, ContextType } from './types';
-import { MOCK_USER, MOCK_DISCOVERY_USERS, MOCK_SIGNALS, MOCK_CONNECTIONS } from './constants';
 import ProfileCard from './components/ProfileCard';
 import SignalCard from './components/SignalCard';
 import NetworkView from './components/NetworkView';
 import ProfileView from './components/ProfileView';
 import GroundRules from './components/GroundRules';
+import LoginModal from './components/LoginModal';
 import { getIntroSuggestion } from './services/claudeService';
+import { authService } from './services/authService';
+import { dataService } from './services/dataService';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'BOARD' | 'NETWORK' | 'PROFILE' | 'RULES'>('BOARD');
-  const [user, setUser] = useState<User>(MOCK_USER);
-  const [activeProfileId, setActiveProfileId] = useState<string>(user.profiles[0].id);
-  const [signals, setSignals] = useState<Signal[]>(MOCK_SIGNALS);
-  const [connections, setConnections] = useState<NetworkConnection[]>(MOCK_CONNECTIONS);
-  const [discoveryUsers] = useState<User[]>(MOCK_DISCOVERY_USERS);
+  const [user, setUser] = useState<User | null>(null);
+  const [activeProfileId, setActiveProfileId] = useState<string>('');
+  const [signals, setSignals] = useState<Signal[]>([]);
+  const [connections, setConnections] = useState<NetworkConnection[]>([]);
+  const [discoveryUsers, setDiscoveryUsers] = useState<User[]>([]);
+  const [showLoginModal, setShowLoginModal] = useState(false);
   
   const [showIntroModal, setShowIntroModal] = useState(false);
   const [selectedRecipient, setSelectedRecipient] = useState<{ user: User, profile?: ContextProfile, signal?: Signal } | null>(null);
@@ -28,8 +31,115 @@ const App: React.FC = () => {
   const [editingSignal, setEditingSignal] = useState<{ content: string; type: 'OFFER' | 'ASK' } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Initialize user and data on mount
+  useEffect(() => {
+    const currentUser = authService.getCurrentUser();
+    if (currentUser) {
+      setUser(currentUser);
+      if (currentUser.profiles.length > 0) {
+        setActiveProfileId(currentUser.profiles[0].id);
+      }
+      
+      // Load data
+      const userSignals = dataService.getSignals();
+      const userConnections = dataService.getConnections(currentUser.id);
+      const discovery = dataService.getDiscoveryUsers(currentUser.id);
+      
+      setSignals(userSignals);
+      setConnections(userConnections);
+      setDiscoveryUsers(discovery);
+    } else {
+      setShowLoginModal(true);
+    }
+  }, []);
+
+  // Save user when it changes
+  useEffect(() => {
+    if (user) {
+      const updated = authService.updateUser(user.id, user);
+      if (updated) {
+        dataService.addDiscoveryUser(updated);
+      }
+    }
+  }, [user]);
+
+  // Save signals when they change
+  useEffect(() => {
+    if (user && signals.length >= 0) {
+      signals.forEach(signal => {
+        if (signal.userId === user.id) {
+          dataService.saveSignal(signal);
+        }
+      });
+    }
+  }, [signals, user]);
+
+  // Save connections when they change
+  useEffect(() => {
+    if (user && connections.length >= 0) {
+      connections.forEach(conn => {
+        dataService.saveConnection(user.id, conn);
+      });
+    }
+  }, [connections, user]);
+
+  // Load public signals
+  useEffect(() => {
+    if (user) {
+      const publicSignals = dataService.getPublicSignals(user.id);
+      const userSignals = dataService.getSignals().filter(s => s.userId === user.id);
+      setSignals([...userSignals, ...publicSignals]);
+    }
+  }, [user, discoveryUsers]);
+
+  if (!user) {
+    return (
+      <>
+        <div className="min-h-screen bg-[#ffffff] flex items-center justify-center">
+          <div className="text-center">
+            <h1 className="text-4xl font-black mb-4">Tapped.</h1>
+            <p className="text-gray-400 mb-8">Networking Protocol</p>
+            <button 
+              onClick={() => setShowLoginModal(true)}
+              className="btn-brutal !bg-black !text-white"
+            >
+              Get Started
+            </button>
+          </div>
+        </div>
+        {showLoginModal && (
+          <LoginModal
+            onSignIn={async (email, password) => {
+              const signedInUser = await authService.signIn(email, password);
+              setUser(signedInUser);
+              if (signedInUser.profiles.length > 0) {
+                setActiveProfileId(signedInUser.profiles[0].id);
+              }
+              const userSignals = dataService.getSignals();
+              const userConnections = dataService.getConnections(signedInUser.id);
+              const discovery = dataService.getDiscoveryUsers(signedInUser.id);
+              setSignals(userSignals);
+              setConnections(userConnections);
+              setDiscoveryUsers(discovery);
+              setShowLoginModal(false);
+            }}
+            onSignUp={async (email, password, name) => {
+              const newUser = await authService.signUp(email, password, name);
+              setUser(newUser);
+              dataService.addDiscoveryUser(newUser);
+              setShowLoginModal(false);
+            }}
+            onClose={() => {
+              if (user) setShowLoginModal(false);
+            }}
+          />
+        )}
+      </>
+    );
+  }
+
   const canAfford = user.stats.reciprocityCredits > 0;
-  const activeProfile = user.profiles.find(p => p.id === activeProfileId) || user.profiles[0];
+  const activeProfile = user.profiles.find(p => p.id === activeProfileId) || (user.profiles[0] || null);
   const activeSignal = signals.find(s => s.userId === user.id && new Date(s.expiresAt) > new Date());
   
   // Filter signals (exclude expired)
@@ -76,7 +186,7 @@ const App: React.FC = () => {
   };
 
   const generateAIIntro = async () => {
-    if (!selectedRecipient) return;
+    if (!selectedRecipient || !activeProfile) return;
     setIsGenerating(true);
     try {
       const suggestion = await getIntroSuggestion(
@@ -94,7 +204,7 @@ const App: React.FC = () => {
   };
 
   const handleSendIntro = () => {
-    if (!selectedRecipient || !introText.trim()) return;
+    if (!selectedRecipient || !introText.trim() || !user) return;
     
     // Create connection if it doesn't exist
     const existingConnection = connections.find(c => c.userId === selectedRecipient.user.id);
@@ -110,26 +220,38 @@ const App: React.FC = () => {
         status: 'PENDING'
       };
       setConnections(prev => [...prev, newConnection]);
+      dataService.saveConnection(user.id, newConnection);
     } else {
       // Update existing connection
-      updateConnection(existingConnection.id, {
+      const updated = {
+        ...existingConnection,
         lastInteraction: new Date(),
-        status: 'ACTIVE',
+        status: 'ACTIVE' as const,
         privateNotes: existingConnection.privateNotes + `\n\nNew intro: "${introText}"`
-      });
+      };
+      updateConnection(existingConnection.id, updated);
+      dataService.saveConnection(user.id, updated);
     }
     
     setShowIntroModal(false);
     setSelectedRecipient(null);
     setIntroText('');
-    setUser(prev => ({
-      ...prev,
-      stats: { ...prev.stats, reciprocityCredits: Math.max(0, prev.stats.reciprocityCredits - 1) }
-    }));
+    const updatedUser = {
+      ...user,
+      stats: { ...user.stats, reciprocityCredits: Math.max(0, user.stats.reciprocityCredits - 1) }
+    };
+    setUser(updatedUser);
+    authService.updateUser(user.id, updatedUser);
   };
 
   const updateConnection = (id: string, updates: Partial<NetworkConnection>) => {
-    setConnections(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+    if (!user) return;
+    const updated = connections.map(c => c.id === id ? { ...c, ...updates } : c);
+    setConnections(updated);
+    const connection = updated.find(c => c.id === id);
+    if (connection) {
+      dataService.saveConnection(user.id, connection);
+    }
   };
 
   const handleCreateProfile = () => {
@@ -151,30 +273,40 @@ const App: React.FC = () => {
   };
 
   const handleUpdateProfile = (profileId: string, updates: Partial<ContextProfile>) => {
-    setUser(prev => ({
-      ...prev,
-      profiles: prev.profiles.map(p => p.id === profileId ? { ...p, ...updates } : p)
-    }));
+    if (!user) return;
+    const updated = {
+      ...user,
+      profiles: user.profiles.map(p => p.id === profileId ? { ...p, ...updates } : p)
+    };
+    setUser(updated);
+    authService.updateUser(user.id, updated);
   };
 
   const handleCreateSignal = (content: string, type: 'OFFER' | 'ASK') => {
+    if (!activeProfile) return;
+    
     if (activeSignal) {
       // Update existing signal
-      setSignals(prev => prev.map(s => s.id === activeSignal.id ? { ...s, content, type } : s));
+      const updated = { ...activeSignal, content, type };
+      setSignals(prev => prev.map(s => s.id === activeSignal.id ? updated : s));
+      dataService.saveSignal(updated);
     } else {
       // Remove existing active signal for this profile
+      const expiredSignals = signals.filter(s => s.userId === user.id && new Date(s.expiresAt) > new Date());
+      expiredSignals.forEach(s => dataService.deleteSignal(s.id));
       setSignals(prev => prev.filter(s => !(s.userId === user.id && new Date(s.expiresAt) > new Date())));
       
       const newSignal: Signal = {
         id: `signal_${Date.now()}`,
         userId: user.id,
         userName: user.name,
-        contextType: activeProfile.type,
+        contextType: activeProfile?.type || ContextType.PROFESSIONAL,
         content,
         type,
         expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 48) // 48 hours
       };
       setSignals(prev => [...prev, newSignal]);
+      dataService.saveSignal(newSignal);
     }
     setShowSignalModal(false);
     setEditingSignal(null);
@@ -182,6 +314,7 @@ const App: React.FC = () => {
 
   const handleDeleteSignal = (signalId: string) => {
     setSignals(prev => prev.filter(s => s.id !== signalId));
+    dataService.deleteSignal(signalId);
   };
 
   const handleTerminateConnection = (connectionId: string) => {
@@ -228,7 +361,7 @@ const App: React.FC = () => {
             </div>
             <div className="overflow-hidden">
               <p className="text-[8px] font-black uppercase truncate">{user.name}</p>
-              <p className="text-[8px] text-[#ff4d00] font-black uppercase tracking-tighter">{activeProfile.type} identity</p>
+              <p className="text-[8px] text-[#ff4d00] font-black uppercase tracking-tighter">{activeProfile?.type || 'No profile'} identity</p>
             </div>
           </div>
           <div className={`p-2 text-[8px] font-black uppercase text-center tracking-widest ${
@@ -241,6 +374,16 @@ const App: React.FC = () => {
             {user.stats.reciprocityCredits} Credits Available
             {user.stats.reciprocityCredits === 0 && ' — Respond to earn'}
           </div>
+          <button
+            onClick={() => {
+              authService.signOut();
+              setUser(null);
+              setShowLoginModal(true);
+            }}
+            className="text-[8px] font-bold text-gray-400 hover:text-[#ff4d00] uppercase tracking-widest text-center"
+          >
+            Sign Out
+          </button>
         </div>
       </nav>
 
@@ -269,7 +412,7 @@ const App: React.FC = () => {
             {activeTab === 'BOARD' && 'Synchronize with live signals or find reachable nodes in the directory.'}
             {activeTab === 'NETWORK' && 'Established mesh connections. Review private context and rankings.'}
             {activeTab === 'PROFILE' && 'Manage your multiple operating identities and your active broadcast.'}
-            {activeTab === 'RULES' && 'The 13 laws of Tapped. Failure to comply leads to signal degradation.'}
+            {activeTab === 'RULES' && 'The 9 laws of Tapped. Failure to comply leads to signal degradation.'}
           </p>
         </header>
 
@@ -337,10 +480,10 @@ const App: React.FC = () => {
             />
           )}
 
-          {activeTab === 'PROFILE' && (
+          {activeTab === 'PROFILE' && user && (
             <ProfileView 
               user={user} 
-              activeProfileId={activeProfileId} 
+              activeProfileId={activeProfileId || (user.profiles[0]?.id || '')} 
               onSelectProfile={setActiveProfileId}
               onCreateProfile={handleCreateProfile}
               onUpdateProfile={handleUpdateProfile}
@@ -397,7 +540,7 @@ const App: React.FC = () => {
                   <h3 className="text-3xl font-black tracking-tighter uppercase leading-none">{selectedRecipient.user.name}</h3>
                   <div className="flex items-center gap-3 mt-2">
                     <span className="text-[9px] font-black uppercase tracking-widest text-[#ff4d00]">
-                      From: {activeProfile.type} identity
+                      From: {activeProfile?.type || 'No profile'} identity
                     </span>
                     <span className="text-[9px] text-gray-200">|</span>
                     <span className="text-[9px] font-bold text-gray-300 uppercase tracking-widest">standing: {selectedRecipient.user.stats.responseRate}%</span>

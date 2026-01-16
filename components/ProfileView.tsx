@@ -13,7 +13,17 @@ interface ProfileViewProps {
   onDeleteSignal: () => void;
 }
 
-const ProfileView: React.FC<ProfileViewProps> = ({ user, activeProfileId, onSelectProfile }) => {
+const ProfileView: React.FC<ProfileViewProps> = ({ 
+  user, 
+  activeProfileId, 
+  onSelectProfile,
+  onCreateProfile,
+  activeSignal,
+  onCreateSignal,
+  onEditSignal,
+  onDeleteSignal
+}) => {
+  const hoursLeft = activeSignal ? Math.max(0, Math.floor((new Date(activeSignal.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60))) : 0;
   return (
     <div className="space-y-12 fade-in">
       {/* Operating Contexts / Nodes */}
