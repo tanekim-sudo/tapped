@@ -7,7 +7,10 @@ const apiKey = (import.meta.env?.VITE_ANTHROPIC_API_KEY ||
                 (typeof process !== 'undefined' && process.env ? (process.env.VITE_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY) : '') || 
                 '');
 
-const anthropic = apiKey ? new Anthropic({ apiKey }) : null;
+const anthropic = apiKey ? new Anthropic({ 
+  apiKey,
+  dangerouslyAllowBrowser: true // Required for client-side usage. API key is in env vars, not hardcoded.
+}) : null;
 
 export const getIntroSuggestion = async (senderBio: string, receiverBio: string, goal: string) => {
   if (!anthropic) {
