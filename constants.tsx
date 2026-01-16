@@ -1,4 +1,4 @@
-import { ContextType, User, Signal, NetworkConnection } from './types';
+import { ContextType, User, NetworkConnection } from './types';
 
 export const MOCK_USER: User = {
   id: 'me',

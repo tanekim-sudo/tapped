@@ -9,6 +9,7 @@ interface NetworkViewProps {
   statusFilter: 'All Syncs' | 'Pending' | 'Archived';
   onStatusFilterChange: (status: 'All Syncs' | 'Pending' | 'Archived') => void;
   onTerminate: (id: string) => void;
+  onQuickDecline?: (conn: NetworkConnection) => void;
 }
 
 const NetworkView: React.FC<NetworkViewProps> = ({ 
@@ -18,7 +19,8 @@ const NetworkView: React.FC<NetworkViewProps> = ({
   onFilterChange,
   statusFilter,
   onStatusFilterChange,
-  onTerminate
+  onTerminate,
+  onQuickDecline
 }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -93,6 +95,22 @@ const NetworkView: React.FC<NetworkViewProps> = ({
               </div>
 
               <div className="mt-4 flex gap-4">
+                {conn.status === 'PENDING' && (
+                  <button 
+                    onClick={() => onUpdate(conn.id, { status: 'ACTIVE', lastInteraction: new Date() })}
+                    className="text-[8px] font-bold uppercase tracking-widest hover:text-[#ff4d00]"
+                  >
+                    Accept
+                  </button>
+                )}
+                {conn.status === 'PENDING' && onQuickDecline && (
+                  <button 
+                    onClick={() => onQuickDecline(conn)}
+                    className="text-[8px] font-bold uppercase tracking-widest text-gray-400 hover:text-gray-600"
+                  >
+                    Decline
+                  </button>
+                )}
                 <button 
                   onClick={() => onUpdate(conn.id, { lastInteraction: new Date() })}
                   className="text-[8px] font-bold uppercase tracking-widest hover:text-[#ff4d00]"
@@ -103,7 +121,7 @@ const NetworkView: React.FC<NetworkViewProps> = ({
                   onClick={() => onTerminate(conn.id)}
                   className="text-[8px] font-bold uppercase tracking-widest text-red-300 hover:text-red-500 ml-auto"
                 >
-                  Terminate
+                  Close
                 </button>
               </div>
             </div>

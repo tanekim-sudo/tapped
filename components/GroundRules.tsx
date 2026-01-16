@@ -86,7 +86,7 @@ const GroundRules: React.FC = () => {
           <div className="pt-6 border-t border-white/20">
             <p className="text-sm font-black uppercase mb-3 text-[#ff4d00]">Core Principles:</p>
             <ul className="text-sm space-y-2 font-bold opacity-90">
-              <li>• Signals are open and public. Send what you&apos;re looking for or offering.</li>
+              <li>• Search for people by industry or topic. Connect directly.</li>
               <li>• Search by industry or topic to find the right people.</li>
               <li>• No requirements, no tracking, no penalties. Just networking from goodwill.</li>
               <li>• Multiple profiles for different contexts and networking needs.</li>

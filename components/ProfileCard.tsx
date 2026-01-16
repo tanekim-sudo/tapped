@@ -5,9 +5,10 @@ interface ProfileCardProps {
   user: User;
   onConnect: (user: User, profile: ContextProfile) => void;
   canAfford?: boolean;
+  discoveryUsers?: User[]; // For showing who introduced them
 }
 
-const ProfileCard: React.FC<ProfileCardProps> = ({ user, onConnect, canAfford = true }) => {
+const ProfileCard: React.FC<ProfileCardProps> = ({ user, onConnect, canAfford = true, discoveryUsers = [] }) => {
   const primaryProfile = user.profiles[0];
   const initials = user.name.split(' ').map(n => n[0]).join('');
 
@@ -34,50 +35,59 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ user, onConnect, canAfford = 
           </div>
         </div>
 
-        <p className="text-sm font-bold leading-snug tracking-tight text-gray-800 mb-3">
-          {primaryProfile?.bio}
-        </p>
-
-        {primaryProfile?.industry && (
-          <p className="text-[9px] font-bold text-gray-600 mb-2">
-            <span className="text-gray-400">Industry: </span>{primaryProfile.industry}
+        {/* Simplified profile - only essential info */}
+        <div className="space-y-2">
+          <p className="text-sm font-bold leading-snug tracking-tight text-gray-800">
+            {primaryProfile?.bio}
           </p>
-        )}
-        
-        {primaryProfile?.topics && primaryProfile.topics.length > 0 && (
-          <div className="mb-3">
-            <p className="text-[9px] font-bold text-gray-400 mb-1">Topics:</p>
-            <div className="flex flex-wrap gap-2">
-              {primaryProfile.topics.map(topic => (
-                <span key={topic} className="text-[8px] font-bold uppercase px-2 py-0.5 bg-gray-100 text-gray-600 border border-gray-200">
-                  {topic}
-                </span>
-              ))}
+          
+          {/* What they're open to */}
+          {primaryProfile?.openTo && primaryProfile.openTo.length > 0 && (
+            <div>
+              <p className="text-[8px] font-black uppercase text-gray-400 mb-1">Open to:</p>
+              <div className="flex flex-wrap gap-1">
+                {primaryProfile.openTo.map(item => (
+                  <span key={item} className="text-[8px] font-bold uppercase px-2 py-0.5 bg-[#ff4d00]/10 text-[#ff4d00] border border-[#ff4d00]/20">
+                    {item}
+                  </span>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {(primaryProfile?.availabilityRules || primaryProfile?.location) && (
-          <div className="mb-3 space-y-1">
-            {primaryProfile.availabilityRules && (
-              <p className="text-[9px] font-bold text-gray-600">
-                <span className="text-gray-400">Meetings: </span>{primaryProfile.availabilityRules}
-              </p>
-            )}
-            {primaryProfile.location && (
-              <p className="text-[9px] font-bold text-gray-600">
-                <span className="text-gray-400">Location: </span>{primaryProfile.location}
-              </p>
-            )}
-          </div>
-        )}
+          {/* What they know - topics */}
+          {primaryProfile?.topics && primaryProfile.topics.length > 0 && (
+            <div>
+              <p className="text-[8px] font-black uppercase text-gray-400 mb-1">Knows:</p>
+              <div className="flex flex-wrap gap-1">
+                {primaryProfile.topics.slice(0, 3).map(topic => (
+                  <span key={topic} className="text-[8px] font-bold text-gray-600">
+                    {topic}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Who introduced them */}
+          {user.stats.introducedBy && discoveryUsers.length > 0 && (
+            <p className="text-[8px] font-bold text-gray-500 italic">
+              Introduced by {discoveryUsers.find(u => u.id === user.stats.introducedBy)?.name || 'someone'}
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="w-full sm:w-28 sm:border-l border-gray-100 sm:pl-4 flex flex-col justify-center items-center text-center">
-        {primaryProfile?.industry && (
-          <div className="mb-3">
-            <p className="text-xs font-black">{primaryProfile.industry}</p>
-            <p className="text-[9px] text-gray-400">industry</p>
+        {/* Show follow-through rate if available */}
+        {user.stats.followThroughRate !== undefined && user.stats.followThroughRate >= 80 && (
+          <div className="mb-2">
+            <p className="text-[8px] font-black text-[#ff4d00]">High Follow-Through</p>
+          </div>
+        )}
+        {user.stats.introducedBy && (
+          <div className="mb-2">
+            <p className="text-[8px] font-bold text-gray-500 italic">Vouched</p>
           </div>
         )}
         <button 

@@ -26,7 +26,8 @@ export const authService = {
       tagline: '',
       stats: {
         conversationsCompleted: 0,
-        peopleHelped: 0
+        peopleHelped: 0,
+        followThroughRate: 100 // Start at 100, decreases if they don't follow through
       },
       profiles: []
     };

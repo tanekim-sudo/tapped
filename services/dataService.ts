@@ -1,52 +1,9 @@
-import { User, Signal, NetworkConnection } from '../types';
+import { User, NetworkConnection } from '../types';
 
-const SIGNALS_KEY = 'tapped_signals';
 const CONNECTIONS_KEY = 'tapped_connections';
 const DISCOVERY_USERS_KEY = 'tapped_discovery_users';
 
 export const dataService = {
-  // Signals
-  getSignals: (): Signal[] => {
-    const stored = localStorage.getItem(SIGNALS_KEY);
-    if (!stored) return [];
-    
-    const signals = JSON.parse(stored);
-    // Convert Date strings back to Date objects
-    return signals.map((s: any) => ({
-      ...s,
-      expiresAt: new Date(s.expiresAt),
-      createdAt: s.createdAt ? new Date(s.createdAt) : new Date(),
-      responses: (s.responses || []).map((r: any) => ({
-        ...r,
-        respondedAt: new Date(r.respondedAt)
-      }))
-    }));
-  },
-
-  saveSignal: (signal: Signal): void => {
-    const signals = dataService.getSignals();
-    const existingIndex = signals.findIndex(s => s.id === signal.id);
-    
-    if (existingIndex >= 0) {
-      signals[existingIndex] = signal;
-    } else {
-      signals.push(signal);
-    }
-    
-    localStorage.setItem(SIGNALS_KEY, JSON.stringify(signals));
-  },
-
-  deleteSignal: (signalId: string): void => {
-    const signals = dataService.getSignals().filter(s => s.id !== signalId);
-    localStorage.setItem(SIGNALS_KEY, JSON.stringify(signals));
-  },
-
-  getPublicSignals: (currentUserId: string): Signal[] => {
-    return dataService.getSignals().filter(
-      s => s.userId !== currentUserId && new Date(s.expiresAt) > new Date()
-    );
-  },
-
   // Connections
   getConnections: (userId: string): NetworkConnection[] => {
     const stored = localStorage.getItem(`${CONNECTIONS_KEY}_${userId}`);

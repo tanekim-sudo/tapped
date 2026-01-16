@@ -9,6 +9,8 @@ export enum ContextType {
 export interface UserStats {
   conversationsCompleted: number;
   peopleHelped: number;
+  followThroughRate: number; // 0-100, tracks if they actually follow through on commitments
+  introducedBy?: string; // User ID of who introduced them
 }
 
 export interface ContextProfile {
@@ -24,26 +26,6 @@ export interface ContextProfile {
   photo?: string; // URL or base64 data URL for profile photo
 }
 
-export interface SignalResponse {
-  userId: string;
-  userName: string;
-  respondedAt: Date;
-  status: 'ACCEPTED' | 'DECLINED' | 'PENDING';
-}
-
-export interface Signal {
-  id: string;
-  userId: string;
-  userName: string;
-  profileId: string; // Tied to specific profile
-  contextType: ContextType;
-  content: string;
-  expiresAt: Date;
-  type: 'OFFER' | 'ASK';
-  responses: SignalResponse[]; // Track who responded
-  createdAt: Date;
-}
-
 export interface NetworkConnection {
   id: string;
   userId: string;
@@ -51,7 +33,9 @@ export interface NetworkConnection {
   tagline: string;
   lastInteraction: Date;
   privateNotes: string;
-  status: 'ACTIVE' | 'PENDING' | 'CLOSED';
+  status: 'ACTIVE' | 'PENDING' | 'CLOSED' | 'DECLINED';
+  timeCommitment?: '10min' | '15min' | 'async' | 'custom';
+  introducedBy?: string; // User ID of who introduced them
 }
 
 export interface User {

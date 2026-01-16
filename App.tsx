@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { User, ContextProfile, Signal, NetworkConnection, ContextType } from './types';
+import { User, ContextProfile, NetworkConnection, ContextType } from './types';
 import ProfileCard from './components/ProfileCard';
-import SignalCard from './components/SignalCard';
 import NetworkView from './components/NetworkView';
 import ProfileView from './components/ProfileView';
 import GroundRules from './components/GroundRules';
@@ -20,22 +19,21 @@ const App: React.FC = () => {
   const [searchFilter, setSearchFilter] = useState<'industry' | 'topic'>('industry');
   const [user, setUser] = useState<User | null>(null);
   const [activeProfileId, setActiveProfileId] = useState<string>('');
-  const [signals, setSignals] = useState<Signal[]>([]);
   const [connections, setConnections] = useState<NetworkConnection[]>([]);
   const [discoveryUsers, setDiscoveryUsers] = useState<User[]>([]);
   const [showLoginModal, setShowLoginModal] = useState(false);
   
   const [showIntroModal, setShowIntroModal] = useState(false);
-  const [selectedRecipient, setSelectedRecipient] = useState<{ user: User, profile?: ContextProfile, signal?: Signal } | null>(null);
+  const [selectedRecipient, setSelectedRecipient] = useState<{ user: User, profile?: ContextProfile } | null>(null);
   const [introText, setIntroText] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [timeCommitment, setTimeCommitment] = useState<'10min' | '15min' | 'async' | 'custom'>('15min');
+  const [showDeclineModal, setShowDeclineModal] = useState(false);
+  const [decliningConnection, setDecliningConnection] = useState<NetworkConnection | null>(null);
   const [boardFilter, setBoardFilter] = useState('');
   const [networkFilter, setNetworkFilter] = useState('');
   const [networkStatusFilter, setNetworkStatusFilter] = useState<'All Syncs' | 'Pending' | 'Archived'>('All Syncs');
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [showSignalModal, setShowSignalModal] = useState(false);
-  const [editingSignal, setEditingSignal] = useState<{ content: string; type: 'OFFER' | 'ASK' } | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showWalkthrough, setShowWalkthrough] = useState(false);
   const [editingProfile, setEditingProfile] = useState<ContextProfile | null>(null);
@@ -50,11 +48,9 @@ const App: React.FC = () => {
       }
       
       // Load data
-      const userSignals = dataService.getSignals();
       const userConnections = dataService.getConnections(currentUser.id);
       const discovery = dataService.getDiscoveryUsers(currentUser.id);
       
-      setSignals(userSignals);
       setConnections(userConnections);
       setDiscoveryUsers(discovery);
 
@@ -102,14 +98,6 @@ const App: React.FC = () => {
     }
   }, [connections, user]);
 
-  // Load public signals
-  useEffect(() => {
-    if (user) {
-      const publicSignals = dataService.getPublicSignals(user.id);
-      const userSignals = dataService.getSignals().filter(s => s.userId === user.id);
-      setSignals([...userSignals, ...publicSignals]);
-    }
-  }, [user, discoveryUsers]);
 
   if (!user) {
     return (
@@ -159,23 +147,6 @@ const App: React.FC = () => {
   }
 
   const activeProfile = user.profiles.find(p => p.id === activeProfileId) || (user.profiles[0] || null);
-  // Get active signals for current profile (separate OFFER and ASK)
-  const activeOfferSignal = signals.find(s => 
-    s.userId === user.id && 
-    s.profileId === activeProfileId && 
-    s.type === 'OFFER' && 
-    new Date(s.expiresAt) > new Date()
-  );
-  const activeAskSignal = signals.find(s => 
-    s.userId === user.id && 
-    s.profileId === activeProfileId && 
-    s.type === 'ASK' && 
-    new Date(s.expiresAt) > new Date()
-  );
-  
-  // Filter signals (exclude expired)
-  const activeSignals = signals.filter(s => new Date(s.expiresAt) > new Date());
-  
   // Filter discovery users
   const filteredDiscoveryUsers = discoveryUsers.filter(u => 
     !boardFilter || 
@@ -202,15 +173,6 @@ const App: React.FC = () => {
     setIntroText('');
   };
 
-  const handleSignalResponse = (signal: Signal) => {
-    const targetUser = discoveryUsers.find(u => u.id === signal.userId) || { 
-      name: signal.userName, 
-      id: signal.userId, 
-      stats: { conversationsCompleted: 0, peopleHelped: 0 },
-      profiles: []
-    } as any;
-    handleConnectRequest({ user: targetUser, signal });
-  };
 
   const generateAIIntro = async () => {
     if (!selectedRecipient || !activeProfile) return;
@@ -218,13 +180,13 @@ const App: React.FC = () => {
     try {
       const suggestion = await getIntroSuggestion(
         activeProfile.bio,
-        selectedRecipient.signal?.content || selectedRecipient.profile?.bio || '',
+        selectedRecipient.profile?.bio || '',
         selectedRecipient.profile?.goals[0] || 'Sync'
       );
       setIntroText(suggestion || '');
     } catch (error) {
       console.error('Failed to generate intro:', error);
-      setIntroText('Intent: Align on ' + (selectedRecipient.profile?.goals[0] || 'Sync') + '. Verify reachability for mesh expansion.');
+      setIntroText('Looking to connect and network.');
     } finally {
       setIsGenerating(false);
     }
@@ -243,8 +205,23 @@ const App: React.FC = () => {
         tagline: selectedRecipient.user.tagline || selectedRecipient.user.profiles[0]?.bio || '',
         lastInteraction: new Date(),
         privateNotes: `Initial intro: "${introText}"`,
-        status: 'PENDING'
+        status: 'PENDING',
+        timeCommitment,
+        introducedBy: user.id // Track who introduced them
       };
+      
+      // Update recipient's stats to track introduction
+      if (selectedRecipient.user.stats.introducedBy !== user.id) {
+        const updatedRecipient = {
+          ...selectedRecipient.user,
+          stats: {
+            ...selectedRecipient.user.stats,
+            introducedBy: user.id
+          }
+        };
+        authService.updateUser(selectedRecipient.user.id, updatedRecipient);
+        dataService.addDiscoveryUser(updatedRecipient);
+      }
       setConnections(prev => [...prev, newConnection]);
       dataService.saveConnection(user.id, newConnection);
     } else {
@@ -253,20 +230,27 @@ const App: React.FC = () => {
         ...existingConnection,
         lastInteraction: new Date(),
         status: 'ACTIVE' as const,
+        timeCommitment,
+        introducedBy: existingConnection.introducedBy || user.id,
         privateNotes: existingConnection.privateNotes + `\n\nNew intro: "${introText}"`
       };
       updateConnection(existingConnection.id, updated);
       dataService.saveConnection(user.id, updated);
     }
     
-    // Track signal response if responding to a signal
-    if (selectedRecipient?.signal) {
-      handleSignalAccepted(selectedRecipient.signal.id);
-    }
-    
     setShowIntroModal(false);
     setSelectedRecipient(null);
     setIntroText('');
+    setTimeCommitment('15min');
+  };
+
+  const handleQuickDecline = (connectionId: string, reason: string) => {
+    updateConnection(connectionId, { 
+      status: 'DECLINED',
+      privateNotes: (connections.find(c => c.id === connectionId)?.privateNotes || '') + `\n\nDeclined: ${reason}`
+    });
+    setShowDeclineModal(false);
+    setDecliningConnection(null);
   };
 
   const updateConnection = (id: string, updates: Partial<NetworkConnection>) => {
@@ -330,60 +314,6 @@ const App: React.FC = () => {
     authService.updateUser(user.id, updated);
   };
 
-  const handleCreateSignal = (content: string, type: 'OFFER' | 'ASK') => {
-    if (!activeProfile) return;
-    
-    // Enforce rule: Can't create ASK without first having an OFFER
-    if (type === 'ASK') {
-      const hasActiveOffer = signals.some(s => 
-        s.userId === user.id && 
-        s.profileId === activeProfileId && 
-        s.type === 'OFFER' && 
-        new Date(s.expiresAt) > new Date()
-      );
-      if (!hasActiveOffer) {
-        setError('You must create an OFFER signal before you can create an ASK signal.');
-        return;
-      }
-    }
-    
-    const existingSignal = type === 'OFFER' ? activeOfferSignal : activeAskSignal;
-    
-    if (existingSignal) {
-      // Update existing signal
-      const updated = { 
-        ...existingSignal, 
-        content, 
-        type,
-        responses: existingSignal.responses || []
-      };
-      setSignals(prev => prev.map(s => s.id === existingSignal.id ? updated : s));
-      dataService.saveSignal(updated);
-    } else {
-      const newSignal: Signal = {
-        id: `signal_${Date.now()}`,
-        userId: user.id,
-        userName: user.name,
-        profileId: activeProfileId,
-        contextType: activeProfile?.type || ContextType.PROFESSIONAL,
-        content,
-        type,
-        expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 48), // 48 hours
-        responses: [],
-        createdAt: new Date()
-      };
-      setSignals(prev => [...prev, newSignal]);
-      dataService.saveSignal(newSignal);
-    }
-    setShowSignalModal(false);
-    setEditingSignal(null);
-    setError(null);
-  };
-
-  const handleDeleteSignal = (signalId: string) => {
-    setSignals(prev => prev.filter(s => s.id !== signalId));
-    dataService.deleteSignal(signalId);
-  };
 
   const handleTerminateConnection = (connectionId: string) => {
     if (window.confirm('Terminate this connection? This action cannot be undone.')) {
@@ -402,7 +332,6 @@ const App: React.FC = () => {
 
         <div id="nav-tabs" className="flex lg:flex-col gap-4 lg:gap-6 flex-wrap lg:flex-grow">
           {[
-            { id: 'SIGNALS', label: 'Signals' },
             { id: 'SEARCH', label: 'Search' },
           ].map((tab) => (
             <button
@@ -474,92 +403,16 @@ const App: React.FC = () => {
         
         <header className="mb-8">
           <h2 className="text-3xl font-black uppercase tracking-tighter mb-3">
-            {activeTab === 'SIGNALS' && 'Signals'}
-            {activeTab === 'SEARCH' && 'Search'}
+            Search
           </h2>
 
           <p className="text-sm font-medium max-w-xl text-gray-500">
-            {activeTab === 'SIGNALS' && 'Send signals or browse active signals from the community.'}
-            {activeTab === 'SEARCH' && 'Find people by industry or topic.'}
+            Find people by industry or topic.
           </p>
         </header>
 
 
         <section className="min-h-[50vh]">
-          {activeTab === 'SIGNALS' && (
-            <div className="space-y-12">
-              {/* User's own signals */}
-              {user && (
-                <div className="brutal-card p-6 bg-white">
-                  <h4 className="text-sm font-black uppercase mb-4">Your Signals</h4>
-                  {activeOfferSignal || activeAskSignal ? (
-                    <div className="space-y-4">
-                      {activeOfferSignal && (
-                        <div className="p-4 border-l-4 border-[#ff4d00] bg-gray-50">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-[7px] font-black uppercase px-2 py-1 bg-[#ff4d00] text-white">OFFER</span>
-                            <span className="text-xs text-gray-400">
-                              {Math.max(0, Math.floor((new Date(activeOfferSignal.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60)))}h left
-                            </span>
-                          </div>
-                          <p className="text-sm font-bold italic">&quot;{activeOfferSignal.content}&quot;</p>
-                        </div>
-                      )}
-                      {activeAskSignal && (
-                        <div className="p-4 border-l-4 border-black bg-gray-50">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-[7px] font-black uppercase px-2 py-1 bg-white border border-black">ASK</span>
-                            <span className="text-xs text-gray-400">
-                              {Math.max(0, Math.floor((new Date(activeAskSignal.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60)))}h left
-                            </span>
-                          </div>
-                          <p className="text-sm font-bold italic">&quot;{activeAskSignal.content}&quot;</p>
-                        </div>
-                      )}
-                      <button 
-                        onClick={() => {
-                          setEditingSignal(null);
-                          setShowSignalModal(true);
-                        }}
-                        className="btn-brutal"
-                      >
-                        {activeOfferSignal && activeAskSignal ? 'Edit Signals' : 'Create Signal'}
-                      </button>
-                    </div>
-                  ) : (
-                    <button 
-                      onClick={() => {
-                        setEditingSignal(null);
-                        setShowSignalModal(true);
-                      }}
-                      className="btn-brutal w-full"
-                    >
-                      Create Your First Signal
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {/* All active signals */}
-              <div id="board-signals">
-                <div className="flex justify-between items-center mb-4">
-                  <h4 className="text-sm font-black uppercase tracking-tight">Community Signals</h4>
-                </div>
-                {activeSignals.filter(s => s.userId !== user?.id).length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {activeSignals.filter(s => s.userId !== user?.id).map(s => (
-                      <SignalCard key={s.id} signal={s} onRespond={handleSignalResponse} />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="brutal-card p-12 text-center bg-gray-50">
-                    <p className="text-sm font-bold text-gray-400 italic">No active signals. Be the first to post one!</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
           {activeTab === 'SEARCH' && user && (
             <div>
               <div className="mb-6 space-y-4">
@@ -600,6 +453,12 @@ const App: React.FC = () => {
                         );
                       }
                     })
+                    .sort((a, b) => {
+                      // Surface high follow-through and vouched people first
+                      const aScore = (a.stats.followThroughRate || 0) + (a.stats.introducedBy ? 20 : 0);
+                      const bScore = (b.stats.followThroughRate || 0) + (b.stats.introducedBy ? 20 : 0);
+                      return bScore - aScore;
+                    })
                     .map(u => {
                       const matchingProfile = u.profiles.find(p => 
                         searchFilter === 'industry' 
@@ -612,6 +471,7 @@ const App: React.FC = () => {
                           user={u} 
                           onConnect={(usr, prof) => handleConnectRequest({ user: usr, profile: prof })} 
                           canAfford={true}
+                          discoveryUsers={discoveryUsers}
                         />
                       );
                     })}
@@ -624,8 +484,8 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {/* Profile management - accessible from signals tab */}
-          {user && activeTab === 'SIGNALS' && (
+          {/* Profile management */}
+          {user && (
             <div className="mt-12 pt-8 border-t border-gray-200">
               <ProfileView 
                 user={user} 
@@ -634,21 +494,6 @@ const App: React.FC = () => {
                 onCreateProfile={handleCreateProfile}
                 onUpdateProfile={handleUpdateProfile}
                 onEditProfile={(profile) => setEditingProfile(profile)}
-                activeOfferSignal={activeOfferSignal}
-                activeAskSignal={activeAskSignal}
-                onCreateSignal={(type) => {
-                  setEditingSignal({ content: '', type });
-                  setShowSignalModal(true);
-                }}
-                onEditSignal={(signal) => {
-                  setEditingSignal({ content: signal.content, type: signal.type });
-                  setShowSignalModal(true);
-                }}
-                onDeleteSignal={(signalId) => {
-                  if (window.confirm('Delete this signal? It will be removed immediately.')) {
-                    handleDeleteSignal(signalId);
-                  }
-                }}
               />
             </div>
           )}
@@ -693,27 +538,31 @@ const App: React.FC = () => {
             </div>
             
             <div className="space-y-10">
-              {selectedRecipient.signal && (
-                <div className="p-4 bg-gray-50 border-l border-[#ff4d00]">
-                  <p className="text-[8px] font-black uppercase text-gray-300 mb-1">Intent Alignment:</p>
-                  <p className="text-xs font-bold italic text-gray-600">"{selectedRecipient.signal.content}"</p>
+              <div>
+                <label className="handwritten text-xl block mb-3 text-[#ff4d00]">Quick Time Commitment:</label>
+                <div className="flex gap-2 mb-4">
+                  {(['10min', '15min', 'async'] as const).map(option => (
+                    <button
+                      key={option}
+                      onClick={() => setTimeCommitment(option)}
+                      className={`btn-brutal flex-1 ${timeCommitment === option ? '!bg-black !text-white' : ''}`}
+                    >
+                      {option === 'async' ? 'Async Voice' : option}
+                    </button>
+                  ))}
                 </div>
-              )}
+              </div>
 
               <div>
-                <label className="handwritten text-xl block mb-3 text-[#ff4d00]">Dispatch Short Intent:</label>
-                <div className="mb-2 p-2 bg-gray-50 border-l-2 border-[#ff4d00]">
-                  <p className="text-[8px] font-black uppercase text-gray-400 mb-1">Intent-First Rule:</p>
-                  <p className="text-[9px] font-bold text-gray-600">Start with why, not background. Be direct. 3 sentences max.</p>
-                </div>
+                <label className="handwritten text-xl block mb-3 text-[#ff4d00]">Message:</label>
                 <textarea 
                   value={introText}
                   onChange={(e) => setIntroText(e.target.value)}
-                  placeholder="e.g., Looking for 15 min advice on X. Building Y. Can offer Z in return."
-                  className="w-full text-xl font-bold leading-tight border-none p-0 focus:ring-0 italic h-32 resize-none placeholder-gray-100"
-                  maxLength={300}
+                  placeholder="Brief message..."
+                  className="w-full text-xl font-bold leading-tight border-none p-0 focus:ring-0 italic h-24 resize-none placeholder-gray-100"
+                  maxLength={200}
                 />
-                <p className="text-[8px] text-gray-300 mt-2">{introText.length}/300</p>
+                <p className="text-[8px] text-gray-300 mt-2">{introText.length}/200</p>
               </div>
 
               <div className="flex flex-col sm:flex-row gap-3">
@@ -722,14 +571,14 @@ const App: React.FC = () => {
                   disabled={isGenerating}
                   className="btn-brutal !bg-gray-50 !text-gray-400 !border-gray-200 flex-1 disabled:opacity-50"
                 >
-                  {isGenerating ? 'Synthesizing...' : 'AI Context Draft'}
+                  {isGenerating ? 'Synthesizing...' : 'AI Draft'}
                 </button>
                 <button 
                   onClick={handleSendIntro}
                   disabled={!introText.trim()}
                   className="btn-brutal flex-1 !bg-black !text-white disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Send Message
+                  Send ({timeCommitment === 'async' ? 'Async' : timeCommitment})
                 </button>
               </div>
             </div>
@@ -737,99 +586,39 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Signal Modal */}
-      {showSignalModal && (
+      {/* Quick Decline Modal */}
+      {showDeclineModal && decliningConnection && (
         <div 
           className="fixed inset-0 bg-white/95 flex items-center justify-center z-[100] p-4 fade-in backdrop-blur-sm"
-          onClick={(e) => e.target === e.currentTarget && (setShowSignalModal(false), setEditingSignal(null))}
-          onKeyDown={(e) => e.key === 'Escape' && (setShowSignalModal(false), setEditingSignal(null))}
+          onClick={(e) => e.target === e.currentTarget && (setShowDeclineModal(false), setDecliningConnection(null))}
         >
-          <div className="bg-white w-full max-w-2xl p-8 md:p-12 brutal-card !shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-            <div className="flex justify-between items-start mb-10">
-              <h3 className="text-3xl font-black tracking-tighter uppercase leading-none">
-                {editingSignal && (activeOfferSignal || activeAskSignal) ? 'Modify Signal' : 'Broadcast Signal'}
-              </h3>
-              <button 
-                onClick={() => { setShowSignalModal(false); setEditingSignal(null); }} 
-                className="text-4xl font-light hover:text-[#ff4d00] leading-none"
-                aria-label="Close modal"
-              >
-                &times;
-              </button>
-            </div>
-            
-            <div className="space-y-6">
-              <div>
-                <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 block">Signal Type</label>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => {
-                      const currentContent = editingSignal?.content ?? '';
-                      setEditingSignal({ content: currentContent, type: 'OFFER' });
-                    }}
-                    className={`btn-brutal flex-1 ${editingSignal?.type === 'OFFER' ? '!bg-black !text-white' : ''}`}
-                  >
-                    OFFER
-                  </button>
-                  <button
-                    onClick={() => {
-                      const currentContent = editingSignal?.content ?? '';
-                      // Check if OFFER exists before allowing ASK
-                      if (!activeOfferSignal && editingSignal?.type !== 'OFFER') {
-                        setError('You must create an OFFER signal before creating an ASK signal.');
-                        return;
-                      }
-                      setEditingSignal({ content: currentContent, type: 'ASK' });
-                      setError(null);
-                    }}
-                    className={`btn-brutal flex-1 ${editingSignal?.type === 'ASK' ? '!bg-black !text-white' : ''} ${!activeOfferSignal && editingSignal?.type !== 'OFFER' ? 'opacity-50' : ''}`}
-                    disabled={!activeOfferSignal && editingSignal?.type !== 'OFFER'}
-                    title={!activeOfferSignal && editingSignal?.type !== 'OFFER' ? 'Create an OFFER first' : ''}
-                  >
-                    ASK {!activeOfferSignal && editingSignal?.type !== 'OFFER' && '(OFFER required)'}
-                  </button>
-                </div>
-                {error && editingSignal?.type === 'ASK' && !activeOfferSignal && (
-                  <p className="text-xs text-red-500 font-bold mt-2">{error}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="handwritten text-xl block mb-3 text-[#ff4d00]">Intent (1-2 lines max)</label>
-                <div className="mb-2 p-2 bg-gray-50 border-l-2 border-[#ff4d00]">
-                  <p className="text-[8px] font-black uppercase text-gray-400 mb-1">Signal Rules:</p>
-                  <p className="text-[9px] font-bold text-gray-600">Short, specific, time-bound, actionable. NOT a post. Expires in 48h.</p>
-                </div>
-                <textarea 
-                  value={editingSignal?.content ?? ''}
-                  onChange={(e) => {
-                    const currentType = editingSignal?.type ?? 'OFFER';
-                    setEditingSignal({ content: e.target.value, type: currentType });
-                  }}
-                  placeholder="e.g., Looking for warm intro to infra-focused seed VCs this week."
-                  className="w-full text-lg font-bold leading-tight border border-gray-200 p-4 focus:ring-0 italic h-32 resize-none placeholder-gray-200"
-                  maxLength={200}
-                  autoFocus
-                />
-                <p className="text-[8px] text-gray-300 mt-2">{(editingSignal?.content ?? '').length}/200</p>
-              </div>
-
-              <div className="flex gap-3">
-                <button 
-                  onClick={() => {
-                    const content = editingSignal?.content ?? '';
-                    const type = editingSignal?.type ?? 'OFFER';
-                    if (content.trim() && type) {
-                      handleCreateSignal(content, type);
-                    }
-                  }}
-                  disabled={!editingSignal?.content?.trim() || !editingSignal?.type}
-                  className="btn-brutal flex-1 !bg-black !text-white disabled:opacity-50"
+          <div className="bg-white w-full max-w-md p-6 brutal-card">
+            <h3 className="text-xl font-black mb-4 uppercase">Quick Decline</h3>
+            <div className="space-y-2 mb-6">
+              {[
+                'Not a fit, but try X',
+                'Can intro you to someone better',
+                'Heads down right now',
+                'Not available'
+              ].map(reason => (
+                <button
+                  key={reason}
+                  onClick={() => handleQuickDecline(decliningConnection.id, reason)}
+                  className="btn-brutal w-full text-left !py-3"
                 >
-                  {((activeOfferSignal && editingSignal?.type === 'OFFER') || (activeAskSignal && editingSignal?.type === 'ASK')) ? 'Update Signal' : 'Broadcast'}
+                  {reason}
                 </button>
-              </div>
+              ))}
             </div>
+            <button
+              onClick={() => {
+                setShowDeclineModal(false);
+                setDecliningConnection(null);
+              }}
+              className="btn-brutal w-full !bg-gray-50"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
@@ -894,24 +683,6 @@ const App: React.FC = () => {
               target: '#profile-view',
               position: 'left',
               action: () => setActiveTab('PROFILE')
-            },
-            {
-              id: 'signal-create',
-              title: 'Create a Signal',
-              content: 'Broadcast your intent to the network. Signals expire in 48 hours to keep things fresh and actionable.',
-              target: '#profile-view',
-              position: 'bottom',
-              action: () => {
-                setActiveTab('PROFILE');
-                setTimeout(() => setShowSignalModal(true), 300);
-              }
-            },
-            {
-              id: 'credits',
-              title: 'Reciprocity Credits System',
-              content: 'This is THE core mechanic. To send messages, you must respond to others. Ignoring messages drains your ability to be contacted. Response is the currency—not optional, but required. This solves ghosting and power imbalance.',
-              target: '#nav-main',
-              position: 'left'
             },
             {
               id: 'complete',
