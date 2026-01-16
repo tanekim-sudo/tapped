@@ -24,31 +24,18 @@ const SignalCard: React.FC<SignalCardProps> = ({ signal, onRespond }) => {
         </span>
       </div>
       
-      <div className="mb-2">
-        <p className="text-[6px] font-black uppercase text-gray-400 tracking-widest mb-1">Intent (Not a Post)</p>
-        <p className="text-xs font-bold leading-relaxed italic text-gray-900 group-hover:text-black">
-          &quot;{signal.content}&quot;
-        </p>
-      </div>
+      <p className="text-sm font-bold leading-relaxed mb-4 text-gray-900">
+        &quot;{signal.content}&quot;
+      </p>
       
-      <div className="mb-4 pt-3 border-t border-gray-100">
-        <p className="text-[7px] font-black text-gray-300 uppercase mb-2">Action Required:</p>
-        <div className="flex gap-2">
-          <button 
-            onClick={() => !isExpired && onRespond(signal)}
-            disabled={isExpired}
-            className="btn-brutal !py-1 !px-2 !text-[8px] flex-1"
-          >
-            {signal.type === 'OFFER' ? 'Sync' : 'Offer Help'}
-          </button>
-          <button 
-            disabled={isExpired}
-            className="btn-brutal !bg-white !text-gray-300 !border-gray-50 !py-1 !px-2 !text-[8px] hover:!text-black disabled:opacity-30"
-            title="Make an introduction"
-          >
-            Relay
-          </button>
-        </div>
+      <div className="flex gap-2">
+        <button 
+          onClick={() => !isExpired && onRespond(signal)}
+          disabled={isExpired}
+          className="btn-brutal !py-2 !px-4 !text-xs flex-1"
+        >
+          {signal.type === 'OFFER' ? 'Connect' : 'Respond'}
+        </button>
       </div>
     </div>
   );

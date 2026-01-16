@@ -30,13 +30,13 @@ const ProfileView: React.FC<ProfileViewProps> = ({
     <div className="space-y-12 fade-in">
       {/* Operating Contexts / Nodes */}
       <section>
-        <div className="flex items-center justify-between mb-6">
-          <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Operating Contexts</h4>
+        <div className="flex items-center justify-between mb-4">
+          <h4 className="text-sm font-black uppercase">Profiles</h4>
           <button 
             onClick={onCreateProfile}
-            className="text-[9px] font-bold text-[#ff4d00] uppercase hover:underline"
+            className="text-xs font-bold text-[#ff4d00] uppercase hover:underline"
           >
-            + Create Identity
+            + Add Profile
           </button>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -103,13 +103,10 @@ const ProfileView: React.FC<ProfileViewProps> = ({
       {/* Broadcast Signal */}
       <section>
         <div className="flex justify-between items-center mb-4">
-          <div>
-            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-1">Broadcast Signal</h4>
-            <p className="text-[8px] font-bold text-gray-500 italic">Time-bound intent. Not a post. Actionable only.</p>
-          </div>
+          <h4 className="text-sm font-black uppercase">Active Signal</h4>
           {activeSignal && (
-            <span className="text-[9px] font-bold text-gray-300">
-              {activeSignal.type} / {hoursLeft}h left
+            <span className="text-xs font-bold text-gray-400">
+              {hoursLeft}h left
             </span>
           )}
         </div>
@@ -141,12 +138,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({
             </button>
           </div>
         )}
-        <div className="mt-4 p-3 bg-gray-50 border-l-4 border-[#ff4d00]">
-          <p className="text-[8px] font-black uppercase text-gray-400 mb-1">Signal Rules:</p>
-          <p className="text-[9px] font-bold text-gray-600 leading-relaxed">
-            Signals expire in 48h. No likes, no comments, no feed. Just actionable intents. If it&apos;s still relevant, re-signal.
-          </p>
-        </div>
       </section>
 
       {/* Stats Block */}

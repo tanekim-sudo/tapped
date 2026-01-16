@@ -377,19 +377,19 @@ const App: React.FC = () => {
 
         <div id="nav-tabs" className="flex lg:flex-col gap-4 lg:gap-6 flex-wrap lg:flex-grow">
           {[
-            { id: 'BOARD', label: 'Board' },
-            { id: 'NETWORK', label: 'Notes' },
-            { id: 'PROFILE', label: 'Nodes' },
-            { id: 'RULES', label: 'Norms' },
+            { id: 'BOARD', label: 'Signals' },
+            { id: 'NETWORK', label: 'Connections' },
+            { id: 'PROFILE', label: 'Profile' },
+            { id: 'RULES', label: 'Rules' },
           ].map((tab) => (
             <button
               key={tab.id}
               id={`nav-tab-${tab.id.toLowerCase()}`}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`text-left font-black tracking-widest uppercase text-[9px] transition-all py-1 ${
+              className={`text-left font-black tracking-widest uppercase text-[10px] transition-all py-2 ${
                 activeTab === tab.id 
-                  ? 'text-[#ff4d00] border-b border-[#ff4d00]' 
-                  : 'text-gray-300 hover:text-black'
+                  ? 'text-[#ff4d00] border-b-2 border-[#ff4d00]' 
+                  : 'text-gray-400 hover:text-black'
               }`}
             >
               {tab.label}
@@ -417,25 +417,24 @@ const App: React.FC = () => {
           </div>
           
           <div className="p-2 bg-gray-50 border border-gray-200">
-            <p className="text-[7px] font-black uppercase text-gray-400 mb-1">Response Rate</p>
-            <p className={`text-sm font-black ${user.stats.responseRate >= 90 ? 'text-[#ff4d00]' : 'text-gray-600'}`}>
+            <p className="text-xs font-black uppercase text-gray-400 mb-1">Response Rate</p>
+            <p className={`text-lg font-black ${user.stats.responseRate >= 90 ? 'text-[#ff4d00]' : 'text-gray-600'}`}>
               {user.stats.responseRate}%
             </p>
-            <p className="text-[6px] text-gray-400 mt-1">Public reputation</p>
           </div>
-          <div className={`p-3 text-center border-2 ${
+          <div className={`p-3 text-center border ${
             user.stats.reciprocityCredits === 0 
               ? 'bg-red-50 text-red-600 border-red-300' 
               : user.stats.reciprocityCredits < 3 
               ? 'bg-yellow-50 text-yellow-700 border-yellow-300' 
               : 'bg-gray-50 text-gray-600 border-gray-200'
           }`}>
-            <p className="text-[8px] font-black uppercase tracking-widest mb-1">Reciprocity Credits</p>
-            <p className="text-xl font-black mb-1">{user.stats.reciprocityCredits}</p>
-            <p className="text-[7px] font-bold opacity-80">
+            <p className="text-xs font-black uppercase mb-1">Credits</p>
+            <p className="text-2xl font-black mb-1">{user.stats.reciprocityCredits}</p>
+            <p className="text-[9px] font-medium">
               {user.stats.reciprocityCredits === 0 
-                ? 'Respond to earn credits' 
-                : 'Burn to reach out. Refill by responding.'}
+                ? 'Respond to earn' 
+                : 'Required to connect'}
             </p>
           </div>
           <div className="flex flex-col gap-2">
@@ -465,47 +464,29 @@ const App: React.FC = () => {
       {/* Main Container */}
       <main className="flex-grow p-6 md:p-12 lg:p-16 max-w-5xl mx-auto w-full fade-in">
         
-        <header className="mb-12">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-2 h-2 bg-[#ff4d00]"></div>
-            <span className="handwritten text-lg text-gray-400">
-              {activeTab === 'BOARD' && 'Registry and Live Intents.'}
-              {activeTab === 'NETWORK' && 'Private Network Ledger.'}
-              {activeTab === 'PROFILE' && 'Operating Context Identities.'}
-              {activeTab === 'RULES' && 'Operating Procedures.'}
-            </span>
-          </div>
-          
-          <h2 className="text-4xl md:text-6xl font-black mb-6 leading-none tracking-tighter uppercase">
-            {activeTab === 'BOARD' && 'The Board'}
-            {activeTab === 'NETWORK' && 'Private Notes'}
-            {activeTab === 'PROFILE' && 'Nodes'}
-            {activeTab === 'RULES' && 'The Protocol'}
+        <header className="mb-8">
+          <h2 className="text-3xl font-black uppercase tracking-tighter mb-3">
+            {activeTab === 'BOARD' && 'Signals'}
+            {activeTab === 'NETWORK' && 'Connections'}
+            {activeTab === 'PROFILE' && 'Profile'}
+            {activeTab === 'RULES' && 'Rules'}
           </h2>
 
-          <p className="text-md font-bold max-w-xl text-gray-500 leading-snug">
-            {activeTab === 'BOARD' && 'Synchronize with live signals or find reachable nodes in the directory.'}
-            {activeTab === 'NETWORK' && 'Established mesh connections. Review private context and rankings.'}
-            {activeTab === 'PROFILE' && 'Manage your multiple operating identities and your active broadcast.'}
-            {activeTab === 'RULES' && 'The 9 laws of Tapped. Failure to comply leads to signal degradation.'}
+          <p className="text-sm font-medium max-w-xl text-gray-500">
+            {activeTab === 'BOARD' && 'Browse active signals and connect with others.'}
+            {activeTab === 'NETWORK' && 'Your established connections.'}
+            {activeTab === 'PROFILE' && 'Manage your profiles and signals.'}
+            {activeTab === 'RULES' && 'The protocol for how Tapped works.'}
           </p>
         </header>
 
-        {/* Key Differentiators Banner - Show on Board tab */}
-        {activeTab === 'BOARD' && (
-          <DifferentiatorsBanner />
-        )}
 
         <section className="min-h-[50vh]">
           {activeTab === 'BOARD' && (
             <div className="space-y-12">
               <div id="board-signals">
-                <div className="flex justify-between items-baseline mb-4">
-                  <div>
-                    <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-1">Live Signals</h4>
-                    <p className="text-[8px] font-bold text-gray-500 italic">Actionable intents, not posts. No likes. No comments. Just routing.</p>
-                  </div>
-                  <p className="text-[8px] font-bold text-gray-200">Auto-expires</p>
+                <div className="flex justify-between items-center mb-4">
+                  <h4 className="text-sm font-black uppercase tracking-tight">Active Signals</h4>
                 </div>
                 {activeSignals.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -520,21 +501,16 @@ const App: React.FC = () => {
                 )}
               </div>
 
-              <div id="board-directory" className="pt-12 border-t border-gray-100">
-                <div className="flex justify-between items-center mb-6">
-                  <div>
-                    <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-1">Node Directory</h4>
-                    <p className="text-[8px] font-bold text-gray-500 italic">Everyone here opted in. Intent-first discovery, not resume-first.</p>
-                  </div>
-                  <div className="w-40">
-                    <input 
-                      type="text" 
-                      placeholder="FILTER..." 
-                      value={boardFilter}
-                      onChange={(e) => setBoardFilter(e.target.value)}
-                      className="!p-1 text-[8px] border-none border-b border-gray-100" 
-                    />
-                  </div>
+              <div id="board-directory" className="pt-8 border-t border-gray-200 mt-8">
+                <div className="flex justify-between items-center mb-4">
+                  <h4 className="text-sm font-black uppercase tracking-tight">Directory</h4>
+                  <input 
+                    type="text" 
+                    placeholder="Search..." 
+                    value={boardFilter}
+                    onChange={(e) => setBoardFilter(e.target.value)}
+                    className="px-3 py-1 text-xs border border-gray-200 focus:border-[#ff4d00] outline-none" 
+                  />
                 </div>
                 {filteredDiscoveryUsers.length > 0 ? (
                   filteredDiscoveryUsers.map(u => (
