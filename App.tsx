@@ -9,6 +9,7 @@ import OnboardingModal from './components/OnboardingModal';
 import Walkthrough from './components/Walkthrough';
 import ProfileEditModal from './components/ProfileEditModal';
 import { getIntroSuggestion } from './services/claudeService';
+import { enhancedSearch, getRecommendations, getSearchSuggestions } from './services/enhancedSearchService';
 import { authService } from './services/authService';
 import { dataService } from './services/dataService';
 import { onboardingService } from './services/onboardingService';
@@ -17,6 +18,10 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'SEARCH'>('SEARCH');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchFilter, setSearchFilter] = useState<'industry' | 'topic'>('industry');
+  const [searchResults, setSearchResults] = useState<Array<{ user: User; relevanceScore: number; matchReasons: string[]; suggestedConnectionType?: string }>>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchSuggestions, setSearchSuggestions] = useState<string[]>([]);
+  const [recommendations, setRecommendations] = useState<Array<{ user: User; relevanceScore: number; matchReasons: string[]; suggestedConnectionType?: string }>>([]);
   const [user, setUser] = useState<User | null>(null);
   const [activeProfileId, setActiveProfileId] = useState<string>('');
   const [connections, setConnections] = useState<NetworkConnection[]>([]);
@@ -40,52 +45,113 @@ const App: React.FC = () => {
 
   // Initialize user and data on mount
   useEffect(() => {
-    const currentUser = authService.getCurrentUser();
-    if (currentUser) {
-      setUser(currentUser);
-      if (currentUser.profiles.length > 0) {
-        setActiveProfileId(currentUser.profiles[0].id);
-      }
-      
-      // Load data
-      const userConnections = dataService.getConnections(currentUser.id);
-      const discovery = dataService.getDiscoveryUsers(currentUser.id);
-      
-      setConnections(userConnections);
-      setDiscoveryUsers(discovery);
+    const loadData = async () => {
+      const currentUser = await authService.getCurrentUser();
+      if (currentUser) {
+        setUser(currentUser);
+        if (currentUser.profiles.length > 0) {
+          setActiveProfileId(currentUser.profiles[0].id);
+        }
+        
+        // Load data
+        const userConnections = await dataService.getConnections(currentUser.id);
+        const discovery = await dataService.getDiscoveryUsers(currentUser.id);
+        
+        setConnections(userConnections);
+        setDiscoveryUsers(discovery);
 
-      // Check if onboarding needed
-      if (currentUser.profiles.length === 0 || !onboardingService.isOnboardingComplete()) {
-        setShowOnboarding(true);
-      } else if (!onboardingService.isWalkthroughComplete()) {
-        // Show walkthrough after a short delay
-        setTimeout(() => {
-          setShowWalkthrough(true);
-        }, 1000);
+        // Load recommendations
+        const recs = await getRecommendations(currentUser.id, currentUser);
+        setRecommendations(recs);
+
+        // Check if onboarding needed
+        if (currentUser.profiles.length === 0 || !onboardingService.isOnboardingComplete()) {
+          setShowOnboarding(true);
+        } else if (!onboardingService.isWalkthroughComplete()) {
+          // Show walkthrough after a short delay
+          setTimeout(() => {
+            setShowWalkthrough(true);
+          }, 1000);
+        }
+      } else {
+        setShowLoginModal(true);
       }
-    } else {
-      setShowLoginModal(true);
-    }
+    };
+    
+    loadData();
   }, []);
 
   // Save user when it changes
   useEffect(() => {
-    if (user) {
-      const updated = authService.updateUser(user.id, user);
-      if (updated) {
-        dataService.addDiscoveryUser(updated);
+    const saveUser = async () => {
+      if (user) {
+        const updated = await authService.updateUser(user.id, user);
+        if (updated) {
+          await dataService.addDiscoveryUser(updated);
+        }
       }
-    }
+    };
+    saveUser();
   }, [user]);
 
   // Save connections when they change
   useEffect(() => {
-    if (user && connections.length >= 0) {
-      connections.forEach(conn => {
-        dataService.saveConnection(user.id, conn);
-      });
-    }
+    const saveConnections = async () => {
+      if (user && connections.length >= 0) {
+        for (const conn of connections) {
+          await dataService.saveConnection(user.id, conn);
+        }
+      }
+    };
+    saveConnections();
   }, [connections, user]);
+
+  // Enhanced search with Claude
+  useEffect(() => {
+    const performSearch = async () => {
+      if (!user || !searchQuery.trim()) {
+        setSearchResults([]);
+        return;
+      }
+
+      setIsSearching(true);
+      try {
+        const results = await enhancedSearch(searchQuery, user.id, {
+          industry: searchFilter === 'industry' ? searchQuery : undefined,
+          topic: searchFilter === 'topic' ? searchQuery : undefined
+        });
+        setSearchResults(results);
+      } catch (error) {
+        console.error('Search error:', error);
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    };
+
+    const debounceTimer = setTimeout(performSearch, 300);
+    return () => clearTimeout(debounceTimer);
+  }, [searchQuery, searchFilter, user]);
+
+  // Get search suggestions
+  useEffect(() => {
+    const loadSuggestions = async () => {
+      if (!user || searchQuery.length < 2) {
+        setSearchSuggestions([]);
+        return;
+      }
+
+      try {
+        const suggestions = await getSearchSuggestions(searchQuery, user.id);
+        setSearchSuggestions(suggestions);
+      } catch (error) {
+        console.error('Suggestions error:', error);
+      }
+    };
+
+    const debounceTimer = setTimeout(loadSuggestions, 200);
+    return () => clearTimeout(debounceTimer);
+  }, [searchQuery, user]);
 
 
   if (!user) {
@@ -110,10 +176,15 @@ const App: React.FC = () => {
               if (signedInUser.profiles.length > 0) {
                 setActiveProfileId(signedInUser.profiles[0].id);
               }
-              const userConnections = dataService.getConnections(signedInUser.id);
-              const discovery = dataService.getDiscoveryUsers(signedInUser.id);
+              const userConnections = await dataService.getConnections(signedInUser.id);
+              const discovery = await dataService.getDiscoveryUsers(signedInUser.id);
               setConnections(userConnections);
               setDiscoveryUsers(discovery);
+              
+              // Load recommendations
+              const recs = await getRecommendations(signedInUser.id, signedInUser);
+              setRecommendations(recs);
+              
               setShowLoginModal(false);
             }}
             onSignUp={async (email, password, name) => {
@@ -231,8 +302,8 @@ const App: React.FC = () => {
     setTimeCommitment('15min');
   };
 
-  const handleQuickDecline = (connectionId: string, reason: string) => {
-    updateConnection(connectionId, { 
+  const handleQuickDecline = async (connectionId: string, reason: string) => {
+    await updateConnection(connectionId, { 
       status: 'DECLINED',
       privateNotes: (connections.find(c => c.id === connectionId)?.privateNotes || '') + `\n\nDeclined: ${reason}`
     });
@@ -302,9 +373,9 @@ const App: React.FC = () => {
   };
 
 
-  const handleTerminateConnection = (connectionId: string) => {
+  const handleTerminateConnection = async (connectionId: string) => {
     if (window.confirm('Terminate this connection? This action cannot be undone.')) {
-      updateConnection(connectionId, { status: 'CLOSED' });
+      await updateConnection(connectionId, { status: 'CLOSED' });
     }
   };
 
@@ -417,55 +488,105 @@ const App: React.FC = () => {
                     Topic
                   </button>
                 </div>
-                <input
-                  type="text"
-                  placeholder={searchFilter === 'industry' ? 'Search by industry (e.g., Tech, VC, Education)...' : 'Search by topic (e.g., Startups, AI, Networking)...'}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full p-4 border-2 border-gray-200 focus:border-[#ff4d00] outline-none text-sm"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder={searchFilter === 'industry' ? 'Search by industry (e.g., Tech, VC, Education)...' : 'Search by topic (e.g., Startups, AI, Networking)...'}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full p-4 border-2 border-gray-200 focus:border-[#ff4d00] outline-none text-sm"
+                  />
+                  {isSearching && (
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
+                      Searching...
+                    </div>
+                  )}
+                  {searchSuggestions.length > 0 && searchQuery.length >= 2 && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border-2 border-gray-200 z-10 max-h-48 overflow-y-auto">
+                      {searchSuggestions.map((suggestion, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => setSearchQuery(suggestion)}
+                          className="w-full text-left p-3 hover:bg-gray-50 border-b border-gray-100 text-sm"
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {searchQuery.trim() ? (
                 <div className="space-y-3">
-                  {discoveryUsers
-                    .filter(u => {
-                      if (searchFilter === 'industry') {
-                        return u.profiles.some(p => 
-                          p.industry?.toLowerCase().includes(searchQuery.toLowerCase())
-                        );
-                      } else {
-                        return u.profiles.some(p => 
-                          p.topics?.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()))
-                        );
-                      }
-                    })
-                    .sort((a, b) => {
-                      // Surface high follow-through and vouched people first
-                      const aScore = (a.stats.followThroughRate || 0) + (a.stats.introducedBy ? 20 : 0);
-                      const bScore = (b.stats.followThroughRate || 0) + (b.stats.introducedBy ? 20 : 0);
-                      return bScore - aScore;
-                    })
-                    .map(u => {
-                      const matchingProfile = u.profiles.find(p => 
-                        searchFilter === 'industry' 
-                          ? p.industry?.toLowerCase().includes(searchQuery.toLowerCase())
-                          : p.topics?.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()))
-                      ) || u.profiles[0];
-                      return (
+                  {isSearching ? (
+                    <div className="brutal-card p-12 text-center bg-gray-50">
+                      <p className="text-sm font-bold text-gray-400 italic">Searching with AI...</p>
+                    </div>
+                  ) : searchResults.length > 0 ? (
+                    searchResults.map(result => (
+                      <div key={result.user.id} className="relative">
                         <ProfileCard 
-                          key={u.id} 
-                          user={u} 
+                          user={result.user} 
                           onConnect={(usr, prof) => handleConnectRequest({ user: usr, profile: prof })} 
                           canAfford={true}
                           discoveryUsers={discoveryUsers}
                         />
-                      );
-                    })}
+                        {result.matchReasons.length > 0 && (
+                          <div className="mt-2 p-2 bg-gray-50 border-l-2 border-[#ff4d00] text-xs">
+                            <p className="font-bold text-gray-600 mb-1">Why this match:</p>
+                            <ul className="list-disc list-inside text-gray-500 space-y-1">
+                              {result.matchReasons.map((reason, idx) => (
+                                <li key={idx}>{reason}</li>
+                              ))}
+                            </ul>
+                            {result.suggestedConnectionType && (
+                              <p className="mt-2 text-[#ff4d00] font-bold">
+                                Suggested: {result.suggestedConnectionType}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="brutal-card p-12 text-center bg-gray-50">
+                      <p className="text-sm font-bold text-gray-400 italic">No matches found. Try a different search term.</p>
+                    </div>
+                  )}
                 </div>
               ) : (
-                <div className="brutal-card p-12 text-center bg-gray-50">
-                  <p className="text-sm font-bold text-gray-400 italic">Enter a search term to find people by {searchFilter}.</p>
+                <div className="space-y-6">
+                  {recommendations.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-black uppercase mb-4 text-gray-600">Recommended for You</h3>
+                      <div className="space-y-3">
+                        {recommendations.slice(0, 5).map(result => (
+                          <div key={result.user.id} className="relative">
+                            <ProfileCard 
+                              user={result.user} 
+                              onConnect={(usr, prof) => handleConnectRequest({ user: usr, profile: prof })} 
+                              canAfford={true}
+                              discoveryUsers={discoveryUsers}
+                            />
+                            {result.matchReasons.length > 0 && (
+                              <div className="mt-2 p-2 bg-gray-50 border-l-2 border-[#ff4d00] text-xs">
+                                <p className="font-bold text-gray-600 mb-1">Why recommended:</p>
+                                <ul className="list-disc list-inside text-gray-500 space-y-1">
+                                  {result.matchReasons.slice(0, 2).map((reason, idx) => (
+                                    <li key={idx}>{reason}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div className="brutal-card p-12 text-center bg-gray-50">
+                    <p className="text-sm font-bold text-gray-400 italic">Enter a search term to find people by {searchFilter}.</p>
+                  </div>
                 </div>
               )}
             </div>

@@ -1,4 +1,5 @@
 import { User, UserStats, ContextProfile, ContextType } from '../types';
+import { dbService } from './supabaseService';
 
 export interface AuthUser {
   email: string;
@@ -6,13 +7,63 @@ export interface AuthUser {
   name: string;
 }
 
-// Simple localStorage-based auth (replace with real backend later)
+// Simple localStorage-based auth (with database fallback)
 const STORAGE_KEY = 'tapped_auth';
 const USERS_KEY = 'tapped_users';
+
+// Check if Supabase is configured
+const useDatabase = () => {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  return !!(supabaseUrl && supabaseKey);
+};
+
+// Simple password hashing (in production, use proper hashing)
+const hashPassword = (password: string): string => {
+  // Simple hash for demo - in production use bcrypt or similar
+  return btoa(password);
+};
 
 export const authService = {
   // Sign up
   signUp: async (email: string, password: string, name: string): Promise<User> => {
+    if (useDatabase()) {
+      // Check if user exists
+      const allUsers = await dbService.getUsers();
+      if (allUsers.some(u => (u as any).email === email)) {
+        throw new Error('User already exists');
+      }
+
+      const newUser: User = {
+        id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        name,
+        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}`,
+        tagline: '',
+        stats: {
+          conversationsCompleted: 0,
+          peopleHelped: 0,
+          followThroughRate: 100
+        },
+        profiles: []
+      };
+
+      // Add email and password to user object for database
+      const userWithAuth = {
+        ...newUser,
+        email,
+        password_hash: hashPassword(password)
+      } as any;
+
+      const created = await dbService.createUser(userWithAuth);
+      if (!created) throw new Error('Failed to create user');
+      
+      // Auto login
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ email, userId: newUser.id }));
+      
+      return newUser;
+    }
+
+    // Fallback to localStorage
     const users = getStoredUsers();
     
     if (users.find(u => u.email === email)) {
@@ -27,7 +78,7 @@ export const authService = {
       stats: {
         conversationsCompleted: 0,
         peopleHelped: 0,
-        followThroughRate: 100 // Start at 100, decreases if they don't follow through
+        followThroughRate: 100
       },
       profiles: []
     };
@@ -43,6 +94,19 @@ export const authService = {
 
   // Sign in
   signIn: async (email: string, password: string): Promise<User> => {
+    if (useDatabase()) {
+      const allUsers = await dbService.getUsers();
+      const userData = allUsers.find((u: any) => u.email === email);
+      
+      if (!userData || (userData as any).password_hash !== hashPassword(password)) {
+        throw new Error('Invalid email or password');
+      }
+
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ email, userId: userData.id }));
+      return userData;
+    }
+
+    // Fallback to localStorage
     const users = getStoredUsers();
     const userData = users.find(u => u.email === email && u.password === password);
     
@@ -55,11 +119,17 @@ export const authService = {
   },
 
   // Get current user
-  getCurrentUser: (): User | null => {
+  getCurrentUser: async (): Promise<User | null> => {
     const auth = localStorage.getItem(STORAGE_KEY);
     if (!auth) return null;
 
     const { userId } = JSON.parse(auth);
+    
+    if (useDatabase()) {
+      return await dbService.getUserById(userId);
+    }
+    
+    // Fallback to localStorage
     const users = getStoredUsers();
     const userData = users.find(u => u.user.id === userId);
     
@@ -72,7 +142,12 @@ export const authService = {
   },
 
   // Update user
-  updateUser: (userId: string, updates: Partial<User>): User | null => {
+  updateUser: async (userId: string, updates: Partial<User>): Promise<User | null> => {
+    if (useDatabase()) {
+      return await dbService.updateUser(userId, updates);
+    }
+    
+    // Fallback to localStorage
     const users = getStoredUsers();
     const userIndex = users.findIndex(u => u.user.id === userId);
     
