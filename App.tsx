@@ -6,9 +6,12 @@ import NetworkView from './components/NetworkView';
 import ProfileView from './components/ProfileView';
 import GroundRules from './components/GroundRules';
 import LoginModal from './components/LoginModal';
+import OnboardingModal from './components/OnboardingModal';
+import Walkthrough from './components/Walkthrough';
 import { getIntroSuggestion } from './services/claudeService';
 import { authService } from './services/authService';
 import { dataService } from './services/dataService';
+import { onboardingService } from './services/onboardingService';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'BOARD' | 'NETWORK' | 'PROFILE' | 'RULES'>('BOARD');
@@ -30,6 +33,8 @@ const App: React.FC = () => {
   const [showSignalModal, setShowSignalModal] = useState(false);
   const [editingSignal, setEditingSignal] = useState<{ content: string; type: 'OFFER' | 'ASK' } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showWalkthrough, setShowWalkthrough] = useState(false);
 
   // Initialize user and data on mount
   useEffect(() => {
@@ -48,6 +53,16 @@ const App: React.FC = () => {
       setSignals(userSignals);
       setConnections(userConnections);
       setDiscoveryUsers(discovery);
+
+      // Check if onboarding needed
+      if (currentUser.profiles.length === 0 || !onboardingService.isOnboardingComplete()) {
+        setShowOnboarding(true);
+      } else if (!onboardingService.isWalkthroughComplete()) {
+        // Show walkthrough after a short delay
+        setTimeout(() => {
+          setShowWalkthrough(true);
+        }, 1000);
+      }
     } else {
       setShowLoginModal(true);
     }
@@ -128,6 +143,8 @@ const App: React.FC = () => {
               setUser(newUser);
               dataService.addDiscoveryUser(newUser);
               setShowLoginModal(false);
+              // Show onboarding for new users
+              setShowOnboarding(true);
             }}
             onClose={() => {
               if (user) setShowLoginModal(false);
@@ -254,6 +271,26 @@ const App: React.FC = () => {
     }
   };
 
+  const handleOnboardingComplete = (profile: ContextProfile) => {
+    if (!user) return;
+    
+    const updated = {
+      ...user,
+      profiles: [...user.profiles, profile]
+    };
+    setUser(updated);
+    setActiveProfileId(profile.id);
+    authService.updateUser(user.id, updated);
+    dataService.addDiscoveryUser(updated);
+    onboardingService.setOnboardingComplete();
+    setShowOnboarding(false);
+    
+    // Show walkthrough after onboarding
+    setTimeout(() => {
+      setShowWalkthrough(true);
+    }, 500);
+  };
+
   const handleCreateProfile = () => {
     const newProfile: ContextProfile = {
       id: `profile_${Date.now()}`,
@@ -327,13 +364,13 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-[#ffffff] text-[#000000] flex flex-col lg:flex-row selection:bg-[#ff4d00] selection:text-white">
       
       {/* Navigation: Compressed & Professional */}
-      <nav className="w-full lg:w-60 border-b lg:border-b-0 lg:border-r border-gray-100 p-8 lg:p-8 lg:sticky lg:top-0 lg:h-screen flex flex-col z-40 bg-white">
+      <nav id="nav-main" className="w-full lg:w-60 border-b lg:border-b-0 lg:border-r border-gray-100 p-8 lg:p-8 lg:sticky lg:top-0 lg:h-screen flex flex-col z-40 bg-white">
         <div className="mb-12">
           <h1 className="text-xl font-black italic tracking-tighter uppercase leading-none">Tapped.</h1>
           <p className="text-[9px] font-bold text-[#ff4d00] uppercase tracking-[0.2em] mt-2">Protocol 0.5</p>
         </div>
 
-        <div className="flex lg:flex-col gap-4 lg:gap-6 flex-wrap lg:flex-grow">
+        <div id="nav-tabs" className="flex lg:flex-col gap-4 lg:gap-6 flex-wrap lg:flex-grow">
           {[
             { id: 'BOARD', label: 'Board' },
             { id: 'NETWORK', label: 'Notes' },
@@ -342,6 +379,7 @@ const App: React.FC = () => {
           ].map((tab) => (
             <button
               key={tab.id}
+              id={`nav-tab-${tab.id.toLowerCase()}`}
               onClick={() => setActiveTab(tab.id as any)}
               className={`text-left font-black tracking-widest uppercase text-[9px] transition-all py-1 ${
                 activeTab === tab.id 
@@ -374,16 +412,27 @@ const App: React.FC = () => {
             {user.stats.reciprocityCredits} Credits Available
             {user.stats.reciprocityCredits === 0 && ' — Respond to earn'}
           </div>
-          <button
-            onClick={() => {
-              authService.signOut();
-              setUser(null);
-              setShowLoginModal(true);
-            }}
-            className="text-[8px] font-bold text-gray-400 hover:text-[#ff4d00] uppercase tracking-widest text-center"
-          >
-            Sign Out
-          </button>
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={() => {
+                setShowWalkthrough(true);
+                onboardingService.reset();
+              }}
+              className="text-[8px] font-bold text-gray-400 hover:text-[#ff4d00] uppercase tracking-widest text-center"
+            >
+              Take Tour
+            </button>
+            <button
+              onClick={() => {
+                authService.signOut();
+                setUser(null);
+                setShowLoginModal(true);
+              }}
+              className="text-[8px] font-bold text-gray-400 hover:text-[#ff4d00] uppercase tracking-widest text-center"
+            >
+              Sign Out
+            </button>
+          </div>
         </div>
       </nav>
 
@@ -419,7 +468,7 @@ const App: React.FC = () => {
         <section className="min-h-[50vh]">
           {activeTab === 'BOARD' && (
             <div className="space-y-12">
-              <div>
+              <div id="board-signals">
                 <div className="flex justify-between items-baseline mb-6">
                   <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Live Signals</h4>
                   <p className="text-[8px] font-bold text-gray-200">Refreshes every 24h</p>
@@ -437,7 +486,7 @@ const App: React.FC = () => {
                 )}
               </div>
 
-              <div className="pt-12 border-t border-gray-100">
+              <div id="board-directory" className="pt-12 border-t border-gray-100">
                 <div className="flex justify-between items-center mb-8">
                   <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Node Directory</h4>
                   <div className="w-40">
@@ -481,29 +530,31 @@ const App: React.FC = () => {
           )}
 
           {activeTab === 'PROFILE' && user && (
-            <ProfileView 
-              user={user} 
-              activeProfileId={activeProfileId || (user.profiles[0]?.id || '')} 
-              onSelectProfile={setActiveProfileId}
-              onCreateProfile={handleCreateProfile}
-              onUpdateProfile={handleUpdateProfile}
-              activeSignal={activeSignal}
-              onCreateSignal={() => {
-                setEditingSignal(null);
-                setShowSignalModal(true);
-              }}
-              onEditSignal={() => {
-                if (activeSignal) {
-                  setEditingSignal({ content: activeSignal.content, type: activeSignal.type });
+            <div id="profile-view">
+              <ProfileView 
+                user={user} 
+                activeProfileId={activeProfileId || (user.profiles[0]?.id || '')} 
+                onSelectProfile={setActiveProfileId}
+                onCreateProfile={handleCreateProfile}
+                onUpdateProfile={handleUpdateProfile}
+                activeSignal={activeSignal}
+                onCreateSignal={() => {
+                  setEditingSignal(null);
                   setShowSignalModal(true);
-                }
-              }}
-              onDeleteSignal={() => {
-                if (activeSignal && window.confirm('Delete this signal? It will be removed immediately.')) {
-                  handleDeleteSignal(activeSignal.id);
-                }
-              }}
-            />
+                }}
+                onEditSignal={() => {
+                  if (activeSignal) {
+                    setEditingSignal({ content: activeSignal.content, type: activeSignal.type });
+                    setShowSignalModal(true);
+                  }
+                }}
+                onDeleteSignal={() => {
+                  if (activeSignal && window.confirm('Delete this signal? It will be removed immediately.')) {
+                    handleDeleteSignal(activeSignal.id);
+                  }
+                }}
+              />
+            </div>
           )}
 
           {activeTab === 'RULES' && (
@@ -691,6 +742,91 @@ const App: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Onboarding Modal */}
+      {showOnboarding && user && (
+        <OnboardingModal
+          userName={user.name}
+          onComplete={handleOnboardingComplete}
+        />
+      )}
+
+      {/* Walkthrough */}
+      {showWalkthrough && user && (
+        <Walkthrough
+          steps={[
+            {
+              id: 'welcome',
+              title: 'Welcome to Tapped',
+              content: 'Tapped is a networking protocol for high-bandwidth individuals. Let\'s take a quick tour of the key features.',
+              position: 'center'
+            },
+            {
+              id: 'navigation',
+              title: 'Navigation',
+              content: 'Use these tabs to navigate: Board (signals and discovery), Notes (your connections), Nodes (your profiles), and Norms (the protocol rules).',
+              target: '#nav-tabs',
+              position: 'right'
+            },
+            {
+              id: 'signals',
+              title: 'Live Signals',
+              content: 'Signals are time-bound public intents. You can respond to others\' signals or create your own to broadcast what you\'re looking for or offering.',
+              target: '#board-signals',
+              position: 'bottom',
+              action: () => setActiveTab('BOARD')
+            },
+            {
+              id: 'directory',
+              title: 'Node Directory',
+              content: 'Browse other users in the network. Click "Sync" to send a connection request. You need reciprocity credits to send requests.',
+              target: '#board-directory',
+              position: 'top',
+              action: () => setActiveTab('BOARD')
+            },
+            {
+              id: 'profile',
+              title: 'Your Profiles',
+              content: 'Create multiple networking identities for different contexts. Each profile can have its own bio, goals, and availability.',
+              target: '#profile-view',
+              position: 'left',
+              action: () => setActiveTab('PROFILE')
+            },
+            {
+              id: 'signal-create',
+              title: 'Create a Signal',
+              content: 'Broadcast your intent to the network. Signals expire in 48 hours to keep things fresh and actionable.',
+              target: '#profile-view',
+              position: 'bottom',
+              action: () => {
+                setActiveTab('PROFILE');
+                setTimeout(() => setShowSignalModal(true), 300);
+              }
+            },
+            {
+              id: 'credits',
+              title: 'Reciprocity Credits',
+              content: 'You need credits to send connection requests. Earn credits by responding to messages and helping others. New users start with 5 credits.',
+              target: '#nav-main',
+              position: 'left'
+            },
+            {
+              id: 'complete',
+              title: 'You\'re Ready!',
+              content: 'You now know the basics of Tapped. Start by creating a signal or browsing the directory. Remember: be direct, be helpful, and respond quickly.',
+              position: 'center'
+            }
+          ]}
+          onComplete={() => {
+            setShowWalkthrough(false);
+            onboardingService.setWalkthroughComplete();
+          }}
+          onSkip={() => {
+            setShowWalkthrough(false);
+            onboardingService.setWalkthroughComplete();
+          }}
+        />
       )}
     </div>
   );
