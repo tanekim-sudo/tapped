@@ -8,6 +8,7 @@ import LoginModal from './components/LoginModal';
 import OnboardingModal from './components/OnboardingModal';
 import Walkthrough from './components/Walkthrough';
 import ProfileEditModal from './components/ProfileEditModal';
+import DatabaseStatus from './components/DatabaseStatus';
 import { getIntroSuggestion } from './services/claudeService';
 import { enhancedSearch, getRecommendations, getSearchSuggestions } from './services/enhancedSearchService';
 import { authService } from './services/authService';
@@ -458,6 +459,11 @@ const App: React.FC = () => {
 
       {/* Main Container */}
       <main className="flex-grow p-6 md:p-12 lg:p-16 max-w-5xl mx-auto w-full fade-in">
+        
+        {/* Database Status Indicator */}
+        <div className="mb-4">
+          <DatabaseStatus />
+        </div>
         
         <header className="mb-8">
           <h2 className="text-3xl font-black uppercase tracking-tighter mb-3">
