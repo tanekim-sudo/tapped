@@ -799,8 +799,8 @@ const App: React.FC = () => {
               <div className="flex gap-3">
                 <button 
                   onClick={() => {
-                    const content = editingSignal?.content ?? activeSignal?.content ?? '';
-                    const type = editingSignal?.type ?? activeSignal?.type ?? 'ASK';
+                    const content = editingSignal?.content ?? '';
+                    const type = editingSignal?.type ?? 'OFFER';
                     if (content.trim() && type) {
                       handleCreateSignal(content, type);
                     }
