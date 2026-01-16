@@ -2,7 +2,7 @@
 
 ## Prerequisites
 - A Vercel account (sign up at [vercel.com](https://vercel.com))
-- A Gemini API key from Google AI Studio
+- A Claude API key from Anthropic Console (https://console.anthropic.com/)
 
 ## Deployment Steps
 
@@ -38,10 +38,10 @@
 
 5. **Add Environment Variable**:
    ```bash
-   vercel env add GEMINI_API_KEY
+   vercel env add ANTHROPIC_API_KEY
    ```
    - Select environment: **Production, Preview, Development** (or just Production)
-   - Enter your Gemini API key when prompted
+   - Enter your Claude API key when prompted
 
 6. **Redeploy with environment variable**:
    ```bash
@@ -75,8 +75,8 @@
 4. **Add Environment Variable**:
    - In the project settings, go to **Settings → Environment Variables**
    - Add a new variable:
-     - **Name**: `GEMINI_API_KEY`
-     - **Value**: Your Gemini API key
+     - **Name**: `ANTHROPIC_API_KEY`
+     - **Value**: Your Claude API key (get it from https://console.anthropic.com/)
      - **Environments**: Select Production, Preview, and Development
    - Click **Save**
 
@@ -102,7 +102,7 @@
    - Go to [vercel.com/dashboard](https://vercel.com/dashboard)
    - Select your project
    - Go to **Settings → Environment Variables**
-   - Add `GEMINI_API_KEY` with your API key value
+   - Add `ANTHROPIC_API_KEY` with your Claude API key value
    - Select all environments (Production, Preview, Development)
 
 4. **Deploy**:
@@ -114,12 +114,12 @@
 
 The app requires the following environment variable:
 
-- **`GEMINI_API_KEY`**: Your Google Gemini API key
-  - Get it from: [Google AI Studio](https://makersuite.google.com/app/apikey)
+- **`ANTHROPIC_API_KEY`**: Your Anthropic Claude API key
+  - Get it from: [Anthropic Console](https://console.anthropic.com/)
   - This is used for AI-powered intro message generation
 
 **Important**: 
-- For Vercel, you can use either `GEMINI_API_KEY` or `VITE_GEMINI_API_KEY`
+- For Vercel, you can use either `ANTHROPIC_API_KEY` or `VITE_ANTHROPIC_API_KEY`
 - The app will check both automatically
 - Make sure to add it in Vercel's Environment Variables settings
 
@@ -149,13 +149,13 @@ The app requires the following environment variable:
 - Verify Node.js version (Vercel uses Node 18+ by default)
 
 ### Environment Variables Not Working
-- Make sure variable is named `GEMINI_API_KEY` or `VITE_GEMINI_API_KEY`
+- Make sure variable is named `ANTHROPIC_API_KEY` or `VITE_ANTHROPIC_API_KEY`
 - Redeploy after adding environment variables
 - Check that variable is enabled for the correct environment (Production/Preview/Development)
 
 ### API Errors
-- Verify your Gemini API key is valid
-- Check API quota/limits in Google AI Studio
+- Verify your Claude API key is valid
+- Check API quota/limits in Anthropic Console
 - Review browser console for specific error messages
 
 ## Continuous Deployment

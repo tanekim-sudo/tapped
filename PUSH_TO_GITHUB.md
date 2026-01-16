@@ -44,7 +44,7 @@ Your code is now on GitHub at:
 1. Go to https://vercel.com/new
 2. Click "Import Git Repository"
 3. Select `tanekim-sudo/tapped`
-4. Add environment variable: `GEMINI_API_KEY` = your API key
+4. Add environment variable: `ANTHROPIC_API_KEY` = your Claude API key
 5. Click Deploy
 
 ---

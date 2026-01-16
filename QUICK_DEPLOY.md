@@ -15,7 +15,7 @@
 2. **Deploy on Vercel**:
    - Go to https://vercel.com/new
    - Import your GitHub repository
-   - Add environment variable: `GEMINI_API_KEY` = your API key
+   - Add environment variable: `ANTHROPIC_API_KEY` = your Claude API key
    - Click Deploy
 
 3. **Done!** Your app is live 🚀
@@ -30,16 +30,18 @@ npm i -g vercel
 vercel
 
 # Add environment variable
-vercel env add GEMINI_API_KEY
+vercel env add ANTHROPIC_API_KEY
 
 # Deploy to production
 vercel --prod
 ```
 
-## Get Your Gemini API Key
+## Get Your Claude API Key
 
-1. Go to https://makersuite.google.com/app/apikey
-2. Create a new API key
-3. Copy it and add to Vercel environment variables
+1. Go to https://console.anthropic.com/
+2. Sign up or log in
+3. Navigate to API Keys section
+4. Create a new API key
+5. Copy it and add to Vercel environment variables
 
 That's it! See DEPLOY.md for detailed instructions.

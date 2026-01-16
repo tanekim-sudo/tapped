@@ -18,11 +18,13 @@ View your app in AI Studio: https://ai.studio/apps/drive/1ljMyFcwaTqUy_y5ttfqEdD
    npm install
    ```
 
-2. Set the `GEMINI_API_KEY` in `.env.local` to your Gemini API key:
+2. Set the `ANTHROPIC_API_KEY` in `.env.local` to your Claude API key:
    ```bash
    # Create .env.local file
-   echo "GEMINI_API_KEY=your-api-key-here" > .env.local
+   echo "ANTHROPIC_API_KEY=your-api-key-here" > .env.local
    ```
+   
+   Get your API key from: https://console.anthropic.com/
 
 3. Run the app:
    ```bash
@@ -36,7 +38,7 @@ See [DEPLOY.md](./DEPLOY.md) for detailed deployment instructions, or [QUICK_DEP
 **Quick version:**
 1. Push code to GitHub
 2. Import to Vercel at https://vercel.com/new
-3. Add `GEMINI_API_KEY` environment variable
+3. Add `ANTHROPIC_API_KEY` environment variable
 4. Deploy!
 
 Your app will be live at `https://your-project.vercel.app`

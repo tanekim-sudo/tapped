@@ -6,7 +6,7 @@ import SignalCard from './components/SignalCard';
 import NetworkView from './components/NetworkView';
 import ProfileView from './components/ProfileView';
 import GroundRules from './components/GroundRules';
-import { getIntroSuggestion } from './services/geminiService';
+import { getIntroSuggestion } from './services/claudeService';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'BOARD' | 'NETWORK' | 'PROFILE' | 'RULES'>('BOARD');

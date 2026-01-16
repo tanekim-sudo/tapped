@@ -59,8 +59,8 @@ git push -u origin main
 3. Select `tanekim-sudo/tapped`
 4. Click "Import"
 5. Add environment variable:
-   - Name: `GEMINI_API_KEY`
-   - Value: Your Gemini API key
+   - Name: `ANTHROPIC_API_KEY`
+   - Value: Your Claude API key (get from https://console.anthropic.com/)
    - Environments: All (Production, Preview, Development)
 6. Click "Deploy"
 
