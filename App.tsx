@@ -14,7 +14,7 @@ import { dataService } from './services/dataService';
 import { onboardingService } from './services/onboardingService';
 
 const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'SIGNALS' | 'SEARCH'>('SIGNALS');
+  const [activeTab, setActiveTab] = useState<'SEARCH'>('SEARCH');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchFilter, setSearchFilter] = useState<'industry' | 'topic'>('industry');
   const [user, setUser] = useState<User | null>(null);
@@ -78,17 +78,6 @@ const App: React.FC = () => {
     }
   }, [user]);
 
-  // Save signals when they change
-  useEffect(() => {
-    if (user && signals.length >= 0) {
-      signals.forEach(signal => {
-        if (signal.userId === user.id) {
-          dataService.saveSignal(signal);
-        }
-      });
-    }
-  }, [signals, user]);
-
   // Save connections when they change
   useEffect(() => {
     if (user && connections.length >= 0) {
@@ -121,10 +110,8 @@ const App: React.FC = () => {
               if (signedInUser.profiles.length > 0) {
                 setActiveProfileId(signedInUser.profiles[0].id);
               }
-              const userSignals = dataService.getSignals();
               const userConnections = dataService.getConnections(signedInUser.id);
               const discovery = dataService.getDiscoveryUsers(signedInUser.id);
-              setSignals(userSignals);
               setConnections(userConnections);
               setDiscoveryUsers(discovery);
               setShowLoginModal(false);
@@ -412,7 +399,7 @@ const App: React.FC = () => {
         </header>
 
 
-        <section className="min-h-[50vh]">
+        <section id="search-view" className="min-h-[50vh]">
           {activeTab === 'SEARCH' && user && (
             <div>
               <div className="mb-6 space-y-4">
@@ -656,38 +643,29 @@ const App: React.FC = () => {
             {
               id: 'navigation',
               title: 'Navigation',
-              content: 'Use these tabs to navigate: Board (signals and discovery), Notes (your connections), Nodes (your profiles), and Norms (the protocol rules).',
+              content: 'Use these tabs to navigate: Search (find people), Notes (your connections), Nodes (your profiles), and Norms (the protocol rules).',
               target: '#nav-tabs',
               position: 'right'
             },
             {
-              id: 'signals',
-              title: 'Live Signals (Not Posts)',
-              content: 'Signals are time-bound, actionable intents—NOT posts. No likes, no comments, no feed. They expire in 48h to keep intent fresh. You respond with action: offer help, make an intro, or decline.',
-              target: '#board-signals',
-              position: 'bottom',
-              action: () => setActiveTab('BOARD')
-            },
-            {
-              id: 'directory',
-              title: 'Intent-First Discovery',
+              id: 'search',
+              title: 'Search',
               content: 'Search for people by industry or topic. Everyone here is networking from a place of goodwill.',
-              target: '#board-directory',
+              target: '#search-view',
               position: 'top',
-              action: () => setActiveTab('BOARD')
+              action: () => setActiveTab('SEARCH')
             },
             {
               id: 'profile',
               title: 'Multiple Context Profiles',
-              content: 'Unlike LinkedIn, you can have multiple profiles for different contexts: Professional, Builder, Learner, Anonymous, Local. Each operates independently. This is a key differentiator—profiles are contexts, not identities.',
+              content: 'You can have multiple profiles for different contexts: Professional, Builder, Learner, Anonymous, Local. Each operates independently.',
               target: '#profile-view',
-              position: 'left',
-              action: () => setActiveTab('PROFILE')
+              position: 'left'
             },
             {
               id: 'complete',
               title: 'You\'re Ready!',
-              content: 'Remember: Response is required, not optional. Your response rate is your reputation. Signals are actionable intents, not posts. Multiple profiles for different contexts. This is how networking should work.',
+              content: 'This is a trust-based networking platform. Search for people and connect. No obligations, just goodwill.',
               position: 'center'
             }
           ]}
