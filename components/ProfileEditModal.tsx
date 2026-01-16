@@ -129,16 +129,16 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ profile, onSave, on
           {/* Availability */}
           <div>
             <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 block">
-              Availability Rules
+              Availability
             </label>
-            <textarea
+            <input
+              type="text"
               value={availability}
               onChange={(e) => setAvailability(e.target.value)}
-              placeholder="e.g., 30 mins blocks, Tue/Thu eves only. Max 2 conversations per week."
-              className="w-full p-4 border border-gray-200 focus:border-[#ff4d00] outline-none h-24 resize-none"
-              maxLength={200}
+              placeholder="e.g., 2 slots this week"
+              className="w-full p-3 border border-gray-200 focus:border-[#ff4d00] outline-none"
+              maxLength={100}
             />
-            <p className="text-[8px] text-gray-400 mt-2">{availability.length}/200</p>
           </div>
 
           {/* Open To */}
