@@ -9,8 +9,6 @@ import LoginModal from './components/LoginModal';
 import OnboardingModal from './components/OnboardingModal';
 import Walkthrough from './components/Walkthrough';
 import ProfileEditModal from './components/ProfileEditModal';
-import DifferentiatorsBanner from './components/DifferentiatorsBanner';
-import KeyDifferentiators from './components/KeyDifferentiators';
 import { getIntroSuggestion } from './services/claudeService';
 import { authService } from './services/authService';
 import { dataService } from './services/dataService';
@@ -119,7 +117,6 @@ const App: React.FC = () => {
         <div className="min-h-screen bg-[#ffffff] flex items-center justify-center">
           <div className="text-center">
             <h1 className="text-4xl font-black mb-4">Tapped.</h1>
-            <p className="text-gray-400 mb-8">Networking Protocol</p>
             <button 
               onClick={() => setShowLoginModal(true)}
               className="btn-brutal !bg-black !text-white"
@@ -209,7 +206,7 @@ const App: React.FC = () => {
     const targetUser = discoveryUsers.find(u => u.id === signal.userId) || { 
       name: signal.userName, 
       id: signal.userId, 
-      stats: { responseRate: 90 },
+      stats: { conversationsCompleted: 0, peopleHelped: 0 },
       profiles: []
     } as any;
     handleConnectRequest({ user: targetUser, signal });
@@ -657,24 +654,11 @@ const App: React.FC = () => {
           )}
 
           {activeTab === 'RULES' && (
-            <div>
-              <KeyDifferentiators />
-              <GroundRules />
-            </div>
+            <GroundRules />
           )}
         </section>
 
-        <footer className="mt-32 pt-10 border-t border-gray-100 flex flex-col md:flex-row justify-between gap-8">
-          <div className="space-y-1">
-            <p className="text-[8px] font-black uppercase text-gray-200 tracking-[0.3em]">Tapped Protocol // 2025</p>
-            <p className="handwritten text-lg text-gray-300 italic">&quot;Resolution &gt; Conversation.&quot;</p>
-          </div>
-          <div className="flex gap-8 handwritten text-lg text-[#ff4d00] items-end">
-            <span className="cursor-pointer hover:underline opacity-50 hover:opacity-100">Whitepaper</span>
-            <span className="cursor-pointer hover:underline opacity-50 hover:opacity-100">Manifesto</span>
-          </div>
-        </footer>
-      </main>
+        </main>
 
       {/* Intro Modal */}
       {showIntroModal && selectedRecipient && (
@@ -696,7 +680,6 @@ const App: React.FC = () => {
                       From: {activeProfile?.type || 'No profile'} identity
                     </span>
                     <span className="text-[9px] text-gray-200">|</span>
-                    <span className="text-[9px] font-bold text-gray-300 uppercase tracking-widest">standing: {selectedRecipient.user.stats.responseRate}%</span>
                   </div>
                 </div>
               </div>
@@ -899,7 +882,7 @@ const App: React.FC = () => {
             {
               id: 'directory',
               title: 'Intent-First Discovery',
-              content: 'Everyone here opted in to be contacted. Discovery is intent-first, not resume-first. Response rates are public—this measures availability, not followers. You need reciprocity credits to send requests.',
+              content: 'Search for people by industry or topic. Everyone here is networking from a place of goodwill.',
               target: '#board-directory',
               position: 'top',
               action: () => setActiveTab('BOARD')

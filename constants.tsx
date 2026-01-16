@@ -6,11 +6,8 @@ export const MOCK_USER: User = {
   avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alex',
   tagline: 'Student @ Stanford CS',
   stats: {
-    responseRate: 98,
-    medianReplyTime: '42m',
     conversationsCompleted: 156,
-    peopleHelped: 82,
-    reciprocityCredits: 12
+    peopleHelped: 82
   },
   profiles: [
     {
@@ -85,11 +82,8 @@ export const MOCK_DISCOVERY_USERS: User[] = [
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah',
     tagline: 'Founder, Sequoia Scout',
     stats: {
-      responseRate: 94,
-      medianReplyTime: '3h',
       conversationsCompleted: 842,
-      peopleHelped: 310,
-      reciprocityCredits: 45
+      peopleHelped: 310
     },
     profiles: [
       {
@@ -109,11 +103,8 @@ export const MOCK_DISCOVERY_USERS: User[] = [
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Marcus',
     tagline: 'Staff Eng @ Google',
     stats: {
-      responseRate: 100,
-      medianReplyTime: '12m',
       conversationsCompleted: 231,
-      peopleHelped: 180,
-      reciprocityCredits: 92
+      peopleHelped: 180
     },
     profiles: [
       {

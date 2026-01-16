@@ -78,19 +78,18 @@ const GroundRules: React.FC = () => {
         <div className="absolute top-0 right-0 w-32 h-32 bg-[#ff4d00] opacity-10 blur-3xl"></div>
         <div className="max-w-3xl relative z-10">
           <h4 className="text-2xl font-black mb-6 uppercase tracking-tighter text-[#ff4d00]">
-            The Protocol Constraint.
+            Trust-Based Networking
           </h4>
           <p className="text-lg leading-relaxed font-bold italic opacity-80 mb-6">
-            &quot;These aren&apos;t suggestions. They are the codebase of this network. We optimize for high-bandwidth routing. Ignoring these norms is treated as a systemic failure.&quot;
+            &quot;This platform runs on goodwill. No obligations, no rankings, no enforcement. We trust that everyone here wants to network and help others.&quot;
           </p>
           <div className="pt-6 border-t border-white/20">
-            <p className="text-sm font-black uppercase mb-3 text-[#ff4d00]">Core Differentiators:</p>
+            <p className="text-sm font-black uppercase mb-3 text-[#ff4d00]">Core Principles:</p>
             <ul className="text-sm space-y-2 font-bold opacity-90">
-              <li>• Response is required, not optional. Your response rate is public reputation.</li>
-              <li>• Reciprocity credits: To send, you must respond. This solves ghosting.</li>
-              <li>• Signals are actionable intents, not posts. No feed, no engagement metrics.</li>
-              <li>• Multiple context profiles. One person, many networking intents.</li>
-              <li>• Intent-first discovery. Availability is visible. Everyone opted in.</li>
+              <li>• Signals are open and public. Send what you&apos;re looking for or offering.</li>
+              <li>• Search by industry or topic to find the right people.</li>
+              <li>• No requirements, no tracking, no penalties. Just networking from goodwill.</li>
+              <li>• Multiple profiles for different contexts and networking needs.</li>
             </ul>
           </div>
         </div>
