@@ -1,18 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabaseService';
 
+// Make DatabaseStatus safe - don't crash if there's an error
+
 const DatabaseStatus: React.FC = () => {
   const [status, setStatus] = useState<'checking' | 'connected' | 'not-configured' | 'error'>('checking');
   const [userCount, setUserCount] = useState<number | null>(null);
 
   useEffect(() => {
     const checkConnection = async () => {
-      if (!supabase) {
-        setStatus('not-configured');
-        return;
-      }
-
       try {
+        if (!supabase) {
+          setStatus('not-configured');
+          return;
+        }
+
         // Try to query users table
         const { data, error, count } = await supabase
           .from('users')
@@ -42,7 +44,12 @@ const DatabaseStatus: React.FC = () => {
       }
     };
 
-    checkConnection();
+    // Add a small delay to prevent blocking initial render
+    const timer = setTimeout(() => {
+      checkConnection();
+    }, 100);
+
+    return () => clearTimeout(timer);
   }, []);
 
   if (status === 'checking') {

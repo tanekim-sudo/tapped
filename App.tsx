@@ -47,34 +47,51 @@ const App: React.FC = () => {
   // Initialize user and data on mount
   useEffect(() => {
     const loadData = async () => {
-      const currentUser = await authService.getCurrentUser();
-      if (currentUser) {
-        setUser(currentUser);
-        if (currentUser.profiles.length > 0) {
-          setActiveProfileId(currentUser.profiles[0].id);
-        }
-        
-        // Load data
-        const userConnections = await dataService.getConnections(currentUser.id);
-        const discovery = await dataService.getDiscoveryUsers(currentUser.id);
-        
-        setConnections(userConnections);
-        setDiscoveryUsers(discovery);
+      try {
+        const currentUser = await authService.getCurrentUser();
+        if (currentUser) {
+          setUser(currentUser);
+          if (currentUser.profiles.length > 0) {
+            setActiveProfileId(currentUser.profiles[0].id);
+          }
+          
+          // Load data
+          try {
+            const userConnections = await dataService.getConnections(currentUser.id);
+            const discovery = await dataService.getDiscoveryUsers(currentUser.id);
+            
+            setConnections(userConnections);
+            setDiscoveryUsers(discovery);
 
-        // Load recommendations
-        const recs = await getRecommendations(currentUser.id, currentUser);
-        setRecommendations(recs);
+            // Load recommendations (don't block if it fails)
+            try {
+              const recs = await getRecommendations(currentUser.id, currentUser);
+              setRecommendations(recs);
+            } catch (err) {
+              console.warn('Failed to load recommendations:', err);
+            }
+          } catch (err) {
+            console.error('Failed to load data:', err);
+            // Set empty arrays as fallback
+            setConnections([]);
+            setDiscoveryUsers([]);
+          }
 
-        // Check if onboarding needed
-        if (currentUser.profiles.length === 0 || !onboardingService.isOnboardingComplete()) {
-          setShowOnboarding(true);
-        } else if (!onboardingService.isWalkthroughComplete()) {
-          // Show walkthrough after a short delay
-          setTimeout(() => {
-            setShowWalkthrough(true);
-          }, 1000);
+          // Check if onboarding needed
+          if (currentUser.profiles.length === 0 || !onboardingService.isOnboardingComplete()) {
+            setShowOnboarding(true);
+          } else if (!onboardingService.isWalkthroughComplete()) {
+            // Show walkthrough after a short delay
+            setTimeout(() => {
+              setShowWalkthrough(true);
+            }, 1000);
+          }
+        } else {
+          setShowLoginModal(true);
         }
-      } else {
+      } catch (error) {
+        console.error('Failed to initialize app:', error);
+        // Still show login modal even if there's an error
         setShowLoginModal(true);
       }
     };
@@ -461,9 +478,11 @@ const App: React.FC = () => {
       <main className="flex-grow p-6 md:p-12 lg:p-16 max-w-5xl mx-auto w-full fade-in">
         
         {/* Database Status Indicator */}
-        <div className="mb-4">
-          <DatabaseStatus />
-        </div>
+        {user && (
+          <div className="mb-4">
+            <DatabaseStatus />
+          </div>
+        )}
         
         <header className="mb-8">
           <h2 className="text-3xl font-black uppercase tracking-tighter mb-3">
