@@ -19,16 +19,26 @@ const DatabaseStatus: React.FC = () => {
           .select('*', { count: 'exact', head: true });
 
         if (error) {
-          console.error('Database check error:', error);
-          setStatus('error');
+          // If table doesn't exist, it's not configured
+          if (error.code === '42P01' || error.message?.includes('does not exist')) {
+            setStatus('not-configured');
+          } else {
+            console.error('Database check error:', error);
+            setStatus('error');
+          }
           return;
         }
 
         setStatus('connected');
         setUserCount(count || 0);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Connection check failed:', error);
-        setStatus('error');
+        // If it's a table not found error, show not-configured
+        if (error?.code === '42P01' || error?.message?.includes('does not exist')) {
+          setStatus('not-configured');
+        } else {
+          setStatus('error');
+        }
       }
     };
 
