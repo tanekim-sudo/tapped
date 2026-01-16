@@ -212,15 +212,15 @@ export const dbService = {
       return (data || []).map((c: any) => ({
         id: c.id,
         userId: c.user_id,
-        connectedUserId: c.connected_user_id,
-        name: c.name,
+        connectedUserId: c.connected_user_id || c.user_id, // Fallback for old schema
+        name: c.name || '',
         tagline: c.tagline || '',
-        lastInteraction: new Date(c.last_interaction),
+        lastInteraction: new Date(c.last_interaction || c.created_at || Date.now()),
         privateNotes: c.private_notes || '',
-        status: c.status,
+        status: c.status || 'PENDING',
         timeCommitment: c.time_commitment,
         introducedBy: c.introduced_by,
-        isInitiator: c.is_initiator || false
+        isInitiator: c.is_initiator !== undefined ? c.is_initiator : true
       }));
     } catch (error) {
       console.error('Error fetching connections:', error);
@@ -233,6 +233,7 @@ export const dbService = {
     if (!supabase) return [];
     
     try {
+      // Check if connected_user_id column exists (for backward compatibility)
       const { data, error } = await supabase
         .from('connections')
         .select('*')
@@ -240,15 +241,22 @@ export const dbService = {
         .eq('status', 'PENDING')
         .order('created_at', { ascending: false });
       
-      if (error) throw error;
+      if (error) {
+        // If column doesn't exist, return empty array (old schema)
+        if (error.code === '42703' || error.message?.includes('column') || error.message?.includes('does not exist')) {
+          console.warn('connected_user_id column not found, using old schema');
+          return [];
+        }
+        throw error;
+      }
       
       return (data || []).map((c: any) => ({
         id: c.id,
         userId: c.user_id, // The person who sent the request
-        connectedUserId: c.connected_user_id, // This user (recipient)
-        name: c.name,
+        connectedUserId: c.connected_user_id || c.user_id, // Fallback for old schema
+        name: c.name || '',
         tagline: c.tagline || '',
-        lastInteraction: new Date(c.last_interaction),
+        lastInteraction: new Date(c.last_interaction || c.created_at || Date.now()),
         privateNotes: c.private_notes || '',
         status: c.status,
         timeCommitment: c.time_commitment,
@@ -263,7 +271,7 @@ export const dbService = {
 
   // Get connection status between two users
   async getConnectionStatus(userId: string, otherUserId: string): Promise<'CONNECTED' | 'PENDING_SENT' | 'PENDING_RECEIVED' | 'NOT_CONNECTED' | null> {
-    if (!supabase) return null;
+    if (!supabase) return 'NOT_CONNECTED';
     
     try {
       // Check if user sent a request
@@ -272,9 +280,12 @@ export const dbService = {
         .select('status')
         .eq('user_id', userId)
         .eq('connected_user_id', otherUserId)
-        .single();
+        .maybeSingle();
       
-      if (sentError && sentError.code !== 'PGRST116') throw sentError; // PGRST116 = no rows
+      if (sentError && sentError.code !== 'PGRST116') {
+        console.warn('Error checking sent connection:', sentError);
+        return 'NOT_CONNECTED';
+      }
       
       if (sent) {
         if (sent.status === 'ACTIVE') return 'CONNECTED';
@@ -287,9 +298,12 @@ export const dbService = {
         .select('status')
         .eq('user_id', otherUserId)
         .eq('connected_user_id', userId)
-        .single();
+        .maybeSingle();
       
-      if (receivedError && receivedError.code !== 'PGRST116') throw receivedError;
+      if (receivedError && receivedError.code !== 'PGRST116') {
+        console.warn('Error checking received connection:', receivedError);
+        return 'NOT_CONNECTED';
+      }
       
       if (received) {
         if (received.status === 'ACTIVE') return 'CONNECTED';
@@ -299,7 +313,7 @@ export const dbService = {
       return 'NOT_CONNECTED';
     } catch (error) {
       console.error('Error getting connection status:', error);
-      return null;
+      return 'NOT_CONNECTED'; // Return default instead of null
     }
   },
 
@@ -307,53 +321,102 @@ export const dbService = {
     if (!supabase) return null;
     
     try {
-      // Create connection from sender's perspective
+      // Check if connected_user_id column exists (for backward compatibility)
+      const connectionData: any = {
+        id: connection.id,
+        user_id: userId,
+        name: connection.name,
+        tagline: connection.tagline || null,
+        last_interaction: connection.lastInteraction.toISOString(),
+        private_notes: connection.privateNotes || null,
+        status: connection.status,
+        time_commitment: connection.timeCommitment || null,
+        introduced_by: connection.introducedBy || null
+      };
+      
+      // Only add new fields if they exist in schema
+      if (connection.connectedUserId) {
+        connectionData.connected_user_id = connection.connectedUserId;
+        connectionData.is_initiator = true;
+      }
+      
       const { data, error } = await supabase
         .from('connections')
-        .insert([{
-          id: connection.id,
-          user_id: userId,
-          connected_user_id: connection.connectedUserId,
-          name: connection.name,
-          tagline: connection.tagline || null,
-          last_interaction: connection.lastInteraction.toISOString(),
-          private_notes: connection.privateNotes || null,
-          status: connection.status,
-          time_commitment: connection.timeCommitment || null,
-          introduced_by: connection.introducedBy || null,
-          is_initiator: true
-        }])
+        .insert([connectionData])
         .select()
         .single();
       
       if (error) {
+        // If connected_user_id doesn't exist, try without it (old schema)
+        if (error.code === '42703' || error.message?.includes('column') || error.message?.includes('does not exist')) {
+          console.warn('Using old schema - connected_user_id not found');
+          const { data: oldData, error: oldError } = await supabase
+            .from('connections')
+            .insert([{
+              id: connection.id,
+              user_id: userId,
+              name: connection.name,
+              tagline: connection.tagline || null,
+              last_interaction: connection.lastInteraction.toISOString(),
+              private_notes: connection.privateNotes || null,
+              status: connection.status,
+              time_commitment: connection.timeCommitment || null,
+              introduced_by: connection.introducedBy || null
+            }])
+            .select()
+            .single();
+          
+          if (oldError) {
+            console.error('Error creating connection:', oldError);
+            throw oldError;
+          }
+          
+          return {
+            id: oldData.id,
+            userId: oldData.user_id,
+            connectedUserId: connection.connectedUserId || oldData.user_id,
+            name: oldData.name || '',
+            tagline: oldData.tagline || '',
+            lastInteraction: new Date(oldData.last_interaction),
+            privateNotes: oldData.private_notes || '',
+            status: oldData.status,
+            timeCommitment: oldData.time_commitment,
+            introducedBy: oldData.introduced_by,
+            isInitiator: true
+          };
+        }
         console.error('Error creating connection:', error);
         throw error;
       }
       
-      // If status is PENDING, also create a record for the recipient (so they can see the request)
-      if (connection.status === 'PENDING') {
-        // Get sender's info for recipient's view
-        const sender = await this.getUserById(userId);
-        
-        if (sender) {
-          const recipientConnectionId = `conn_${connection.connectedUserId}_${userId}_${Date.now()}`;
+      // If status is PENDING and new schema, also create a record for the recipient
+      if (connection.status === 'PENDING' && connection.connectedUserId) {
+        try {
+          // Get sender's info for recipient's view
+          const sender = await this.getUserById(userId);
           
-          await supabase
-            .from('connections')
-            .insert([{
-              id: recipientConnectionId,
-              user_id: connection.connectedUserId,
-              connected_user_id: userId,
-              name: sender.name,
-              tagline: sender.tagline || sender.profiles[0]?.bio || null,
-              last_interaction: connection.lastInteraction.toISOString(),
-              private_notes: connection.privateNotes || null,
-              status: 'PENDING',
-              time_commitment: connection.timeCommitment || null,
-              introduced_by: connection.introducedBy || null,
-              is_initiator: false
-            }]);
+          if (sender) {
+            const recipientConnectionId = `conn_${connection.connectedUserId}_${userId}_${Date.now()}`;
+            
+            await supabase
+              .from('connections')
+              .insert([{
+                id: recipientConnectionId,
+                user_id: connection.connectedUserId,
+                connected_user_id: userId,
+                name: sender.name,
+                tagline: sender.tagline || sender.profiles[0]?.bio || null,
+                last_interaction: connection.lastInteraction.toISOString(),
+                private_notes: connection.privateNotes || null,
+                status: 'PENDING',
+                time_commitment: connection.timeCommitment || null,
+                introduced_by: connection.introducedBy || null,
+                is_initiator: false
+              }]);
+          }
+        } catch (err) {
+          console.warn('Failed to create reciprocal connection:', err);
+          // Continue even if this fails
         }
       }
       
@@ -415,48 +478,56 @@ export const dbService = {
       
       // If accepting a connection, also update the other user's connection to ACTIVE
       if (updates.status === 'ACTIVE' && existingConn.status === 'PENDING') {
-        // Find the reciprocal connection (the one from the other user's perspective)
-        const { data: reciprocalConn } = await supabase
-          .from('connections')
-          .select('id, user_id')
-          .eq('user_id', existingConn.connected_user_id)
-          .eq('connected_user_id', userId)
-          .maybeSingle();
-        
-        if (reciprocalConn) {
-          // Update recipient's connection to ACTIVE and fill in their info
-          const recipient = await this.getUserById(existingConn.connected_user_id);
-          await supabase
-            .from('connections')
-            .update({
-              status: 'ACTIVE',
-              name: recipient?.name || '',
-              tagline: recipient?.tagline || recipient?.profiles[0]?.bio || '',
-              last_interaction: new Date().toISOString()
-            })
-            .eq('id', reciprocalConn.id);
-        } else {
-          // Create reciprocal connection if it doesn't exist
-          const recipient = await this.getUserById(existingConn.connected_user_id);
-          const sender = await this.getUserById(userId);
-          
-          if (recipient && sender) {
-            await supabase
+        try {
+          // Check if connected_user_id exists (new schema)
+          if (existingConn.connected_user_id) {
+            // Find the reciprocal connection (the one from the other user's perspective)
+            const { data: reciprocalConn } = await supabase
               .from('connections')
-              .insert([{
-                id: `conn_${existingConn.connected_user_id}_${userId}_${Date.now()}`,
-                user_id: existingConn.connected_user_id,
-                connected_user_id: userId,
-                name: sender.name,
-                tagline: sender.tagline || sender.profiles[0]?.bio || '',
-                last_interaction: new Date().toISOString(),
-                private_notes: '',
-                status: 'ACTIVE',
-                time_commitment: null,
-                introduced_by: null,
-                is_initiator: false
-              }]);
+              .select('id, user_id')
+              .eq('user_id', existingConn.connected_user_id)
+              .eq('connected_user_id', userId)
+              .maybeSingle();
+            
+            if (reciprocalConn) {
+              // Update recipient's connection to ACTIVE and fill in their info
+              const recipient = await this.getUserById(existingConn.connected_user_id);
+              await supabase
+                .from('connections')
+                .update({
+                  status: 'ACTIVE',
+                  name: recipient?.name || '',
+                  tagline: recipient?.tagline || recipient?.profiles[0]?.bio || '',
+                  last_interaction: new Date().toISOString()
+                })
+                .eq('id', reciprocalConn.id);
+            } else {
+              // Create reciprocal connection if it doesn't exist
+              const recipient = await this.getUserById(existingConn.connected_user_id);
+              const sender = await this.getUserById(userId);
+              
+              if (recipient && sender) {
+                await supabase
+                  .from('connections')
+                  .insert([{
+                    id: `conn_${existingConn.connected_user_id}_${userId}_${Date.now()}`,
+                    user_id: existingConn.connected_user_id,
+                    connected_user_id: userId,
+                    name: sender.name,
+                    tagline: sender.tagline || sender.profiles[0]?.bio || '',
+                    last_interaction: new Date().toISOString(),
+                    private_notes: '',
+                    status: 'ACTIVE',
+                    time_commitment: null,
+                    introduced_by: null,
+                    is_initiator: false
+                  }]);
+              }
+            }
           }
+        } catch (err) {
+          console.warn('Failed to update reciprocal connection:', err);
+          // Continue even if this fails
         }
       }
       

@@ -27,7 +27,9 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [activeProfileId, setActiveProfileId] = useState<string>('');
   const [connections, setConnections] = useState<NetworkConnection[]>([]);
+  const [incomingRequests, setIncomingRequests] = useState<NetworkConnection[]>([]);
   const [discoveryUsers, setDiscoveryUsers] = useState<User[]>([]);
+  const [connectionStatuses, setConnectionStatuses] = useState<Record<string, 'CONNECTED' | 'PENDING_SENT' | 'PENDING_RECEIVED' | 'NOT_CONNECTED'>>({});
   const [showLoginModal, setShowLoginModal] = useState(false);
   
   const [showIntroModal, setShowIntroModal] = useState(false);
@@ -64,20 +66,31 @@ const App: React.FC = () => {
           setConnections(userConnections);
           setDiscoveryUsers(discovery);
           
-          // Load incoming connection requests
+          // Load incoming connection requests (non-blocking)
           if (import.meta.env.VITE_SUPABASE_URL) {
-            const incoming = await dbService.getIncomingRequests(currentUser.id);
-            setIncomingRequests(incoming);
-            
-            // Load connection statuses for all discovery users
-            const statuses: Record<string, 'CONNECTED' | 'PENDING_SENT' | 'PENDING_RECEIVED' | 'NOT_CONNECTED'> = {};
-            for (const otherUser of discovery) {
-              const status = await dbService.getConnectionStatus(currentUser.id, otherUser.id);
-              if (status) {
-                statuses[otherUser.id] = status;
+            try {
+              const incoming = await dbService.getIncomingRequests(currentUser.id);
+              setIncomingRequests(incoming);
+              
+              // Load connection statuses for all discovery users (non-blocking)
+              const statuses: Record<string, 'CONNECTED' | 'PENDING_SENT' | 'PENDING_RECEIVED' | 'NOT_CONNECTED'> = {};
+              // Only check status for first 20 users to avoid blocking
+              const usersToCheck = discovery.slice(0, 20);
+              for (const otherUser of usersToCheck) {
+                try {
+                  const status = await dbService.getConnectionStatus(currentUser.id, otherUser.id);
+                  if (status) {
+                    statuses[otherUser.id] = status;
+                  }
+                } catch (err) {
+                  console.warn('Failed to get connection status:', err);
+                }
               }
+              setConnectionStatuses(statuses);
+            } catch (err) {
+              console.warn('Failed to load incoming requests:', err);
+              setIncomingRequests([]);
             }
-            setConnectionStatuses(statuses);
           }
 
             // Load recommendations (don't block if it fails)
@@ -206,44 +219,77 @@ const App: React.FC = () => {
         {showLoginModal && (
           <LoginModal
             onSignIn={async (email, password) => {
-              const signedInUser = await authService.signIn(email, password);
-              setUser(signedInUser);
-              if (signedInUser.profiles.length > 0) {
-                setActiveProfileId(signedInUser.profiles[0].id);
-              }
-              const userConnections = await dataService.getConnections(signedInUser.id);
-              const discovery = await dataService.getDiscoveryUsers(signedInUser.id);
-              setConnections(userConnections);
-              setDiscoveryUsers(discovery);
-              
-              // Load incoming requests and connection statuses
-              if (import.meta.env.VITE_SUPABASE_URL) {
-                const incoming = await dbService.getIncomingRequests(signedInUser.id);
-                setIncomingRequests(incoming);
+              try {
+                const signedInUser = await authService.signIn(email, password);
+                setUser(signedInUser);
+                if (signedInUser.profiles.length > 0) {
+                  setActiveProfileId(signedInUser.profiles[0].id);
+                }
                 
-                const statuses: Record<string, 'CONNECTED' | 'PENDING_SENT' | 'PENDING_RECEIVED' | 'NOT_CONNECTED'> = {};
-                for (const otherUser of discovery) {
-                  const status = await dbService.getConnectionStatus(signedInUser.id, otherUser.id);
-                  if (status) {
-                    statuses[otherUser.id] = status;
+                // Load data
+                const userConnections = await dataService.getConnections(signedInUser.id);
+                const discovery = await dataService.getDiscoveryUsers(signedInUser.id);
+                setConnections(userConnections);
+                setDiscoveryUsers(discovery);
+                
+                // Load incoming requests and connection statuses (non-blocking)
+                if (import.meta.env.VITE_SUPABASE_URL) {
+                  try {
+                    const incoming = await dbService.getIncomingRequests(signedInUser.id);
+                    setIncomingRequests(incoming);
+                    
+                    // Load connection statuses for first 20 users only (to avoid blocking)
+                    const statuses: Record<string, 'CONNECTED' | 'PENDING_SENT' | 'PENDING_RECEIVED' | 'NOT_CONNECTED'> = {};
+                    const usersToCheck = discovery.slice(0, 20);
+                    for (const otherUser of usersToCheck) {
+                      try {
+                        const status = await dbService.getConnectionStatus(signedInUser.id, otherUser.id);
+                        if (status) {
+                          statuses[otherUser.id] = status;
+                        }
+                      } catch (err) {
+                        console.warn('Failed to get connection status:', err);
+                      }
+                    }
+                    setConnectionStatuses(statuses);
+                  } catch (err) {
+                    console.warn('Failed to load connection data:', err);
+                    setIncomingRequests([]);
+                    setConnectionStatuses({});
                   }
                 }
-                setConnectionStatuses(statuses);
+                
+                // Load recommendations (non-blocking)
+                try {
+                  const recs = await getRecommendations(signedInUser.id, signedInUser);
+                  setRecommendations(recs);
+                } catch (err) {
+                  console.warn('Failed to load recommendations:', err);
+                  setRecommendations([]);
+                }
+                
+                setShowLoginModal(false);
+              } catch (error: any) {
+                console.error('Sign in error:', error);
+                throw error; // Re-throw to show in modal
               }
-              
-              // Load recommendations
-              const recs = await getRecommendations(signedInUser.id, signedInUser);
-              setRecommendations(recs);
-              
-              setShowLoginModal(false);
             }}
             onSignUp={async (email, password, name) => {
-              const newUser = await authService.signUp(email, password, name);
-              setUser(newUser);
-              dataService.addDiscoveryUser(newUser);
-              setShowLoginModal(false);
-              // Show onboarding for new users
-              setShowOnboarding(true);
+              try {
+                const newUser = await authService.signUp(email, password, name);
+                setUser(newUser);
+                await dataService.addDiscoveryUser(newUser);
+                setConnections([]);
+                setDiscoveryUsers([]);
+                setIncomingRequests([]);
+                setConnectionStatuses({});
+                setShowLoginModal(false);
+                // Show onboarding for new users
+                setShowOnboarding(true);
+              } catch (error: any) {
+                console.error('Sign up error:', error);
+                throw error; // Re-throw to show in modal
+              }
             }}
             onClose={() => {
               if (user) setShowLoginModal(false);
@@ -304,18 +350,28 @@ const App: React.FC = () => {
     if (!selectedRecipient || !introText.trim() || !user) return;
     
     // Check if connection already exists
-    const existingConnection = connections.find(c => c.connectedUserId === selectedRecipient.user.id);
-    const connectionStatus = connectionStatuses[selectedRecipient.user.id];
+    const existingConnection = connections.find(c => {
+      if (c.connectedUserId) {
+        return c.connectedUserId === selectedRecipient.user.id;
+      }
+      // Backward compatibility - old connections might have userId pointing to the other user
+      return c.userId === selectedRecipient.user.id;
+    });
+    const connectionStatus = connectionStatuses[selectedRecipient.user.id] || 'NOT_CONNECTED';
     
     // If already connected, just update notes
     if (connectionStatus === 'CONNECTED' && existingConnection) {
-      const updated = {
-        ...existingConnection,
-        lastInteraction: new Date(),
-        privateNotes: existingConnection.privateNotes + `\n\nNew message: "${introText}"`
-      };
-      await updateConnection(existingConnection.id, updated);
-      await dataService.saveConnection(user.id, updated);
+      try {
+        const updated = {
+          ...existingConnection,
+          lastInteraction: new Date(),
+          privateNotes: existingConnection.privateNotes + `\n\nNew message: "${introText}"`
+        };
+        await updateConnection(existingConnection.id, updated);
+        await dataService.saveConnection(user.id, updated);
+      } catch (error) {
+        console.error('Failed to update connection:', error);
+      }
       setShowIntroModal(false);
       setSelectedRecipient(null);
       setIntroText('');
@@ -339,17 +395,22 @@ const App: React.FC = () => {
         isInitiator: true
       };
       
-      // Update recipient's stats to track introduction
+      // Update recipient's stats to track introduction (non-blocking)
       if (selectedRecipient.user.stats.introducedBy !== user.id) {
-        const updatedRecipient = {
-          ...selectedRecipient.user,
-          stats: {
-            ...selectedRecipient.user.stats,
-            introducedBy: user.id
-          }
-        };
-        await authService.updateUser(selectedRecipient.user.id, updatedRecipient);
-        await dataService.addDiscoveryUser(updatedRecipient);
+        try {
+          const updatedRecipient = {
+            ...selectedRecipient.user,
+            stats: {
+              ...selectedRecipient.user.stats,
+              introducedBy: user.id
+            }
+          };
+          await authService.updateUser(selectedRecipient.user.id, updatedRecipient);
+          await dataService.addDiscoveryUser(updatedRecipient);
+        } catch (error) {
+          console.warn('Failed to update recipient stats:', error);
+          // Continue even if this fails
+        }
       }
       
       setConnections(prev => [...prev, newConnection]);
@@ -388,48 +449,68 @@ const App: React.FC = () => {
     
     // If accepting, update status for both users
     if (updates.status === 'ACTIVE') {
-      setConnectionStatuses(prev => ({
-        ...prev,
-        [connection.connectedUserId]: 'CONNECTED'
-      }));
+      const otherUserId = connection.connectedUserId || connection.userId;
+      if (otherUserId) {
+        setConnectionStatuses(prev => ({
+          ...prev,
+          [otherUserId]: 'CONNECTED'
+        }));
+      }
       
       // Remove from incoming requests if it was there
       setIncomingRequests(prev => prev.filter(r => r.id !== id));
       
       // Reload connections to get the updated reciprocal connection
-      const refreshed = await dataService.getConnections(user.id);
-      setConnections(refreshed);
+      try {
+        const refreshed = await dataService.getConnections(user.id);
+        setConnections(refreshed);
+      } catch (error) {
+        console.error('Failed to refresh connections:', error);
+      }
     }
     
     if (updates.status === 'DECLINED') {
-      setConnectionStatuses(prev => ({
-        ...prev,
-        [connection.connectedUserId]: 'NOT_CONNECTED'
-      }));
+      const otherUserId = connection.connectedUserId || connection.userId;
+      if (otherUserId) {
+        setConnectionStatuses(prev => ({
+          ...prev,
+          [otherUserId]: 'NOT_CONNECTED'
+        }));
+      }
       setIncomingRequests(prev => prev.filter(r => r.id !== id));
     }
     
     await dataService.saveConnection(user.id, updated);
   };
 
-  const handleOnboardingComplete = (profile: ContextProfile) => {
+  const handleOnboardingComplete = async (profile: ContextProfile) => {
     if (!user) return;
     
-    const updated = {
-      ...user,
-      profiles: [...user.profiles, profile]
-    };
-    setUser(updated);
-    setActiveProfileId(profile.id);
-    authService.updateUser(user.id, updated);
-    dataService.addDiscoveryUser(updated);
-    onboardingService.setOnboardingComplete();
-    setShowOnboarding(false);
-    
-    // Show walkthrough after onboarding
-    setTimeout(() => {
-      setShowWalkthrough(true);
-    }, 500);
+    try {
+      const updated = {
+        ...user,
+        profiles: [...user.profiles, profile]
+      };
+      setUser(updated);
+      setActiveProfileId(profile.id);
+      
+      // Save to database
+      await authService.updateUser(user.id, updated);
+      await dataService.addDiscoveryUser(updated);
+      
+      onboardingService.setOnboardingComplete();
+      setShowOnboarding(false);
+      
+      // Show walkthrough after onboarding
+      setTimeout(() => {
+        setShowWalkthrough(true);
+      }, 500);
+    } catch (error) {
+      console.error('Failed to complete onboarding:', error);
+      // Still close onboarding even if save fails
+      onboardingService.setOnboardingComplete();
+      setShowOnboarding(false);
+    }
   };
 
   const handleCreateProfile = () => {
@@ -453,14 +534,19 @@ const App: React.FC = () => {
     setShowProfileModal(true);
   };
 
-  const handleUpdateProfile = (profileId: string, updates: Partial<ContextProfile>) => {
+  const handleUpdateProfile = async (profileId: string, updates: Partial<ContextProfile>) => {
     if (!user) return;
     const updated = {
       ...user,
       profiles: user.profiles.map(p => p.id === profileId ? { ...p, ...updates } : p)
     };
     setUser(updated);
-    authService.updateUser(user.id, updated);
+    try {
+      await authService.updateUser(user.id, updated);
+      await dataService.addDiscoveryUser(updated);
+    } catch (error) {
+      console.error('Failed to update profile:', error);
+    }
   };
 
 
@@ -769,6 +855,25 @@ const App: React.FC = () => {
                               onConnect={(usr, prof) => handleConnectRequest({ user: usr, profile: prof })} 
                               canAfford={true}
                               discoveryUsers={discoveryUsers}
+                              connectionStatus={connectionStatuses[result.user.id] || 'NOT_CONNECTED'}
+                              onAcceptRequest={async (userId) => {
+                                const request = incomingRequests.find(r => r.userId === userId);
+                                if (request) {
+                                  await updateConnection(request.id, { status: 'ACTIVE', lastInteraction: new Date() });
+                                  setIncomingRequests(prev => prev.filter(r => r.id !== request.id));
+                                  setConnectionStatuses(prev => ({ ...prev, [userId]: 'CONNECTED' }));
+                                  const refreshed = await dataService.getConnections(user!.id);
+                                  setConnections(refreshed);
+                                }
+                              }}
+                              onDeclineRequest={async (userId) => {
+                                const request = incomingRequests.find(r => r.userId === userId);
+                                if (request) {
+                                  await updateConnection(request.id, { status: 'DECLINED' });
+                                  setIncomingRequests(prev => prev.filter(r => r.id !== request.id));
+                                  setConnectionStatuses(prev => ({ ...prev, [userId]: 'NOT_CONNECTED' }));
+                                }
+                              }}
                             />
                             {result.matchReasons.length > 0 && (
                               <div className="mt-2 p-2 bg-gray-50 border-l-2 border-[#ff4d00] text-xs">
