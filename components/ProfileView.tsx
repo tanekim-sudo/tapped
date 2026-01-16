@@ -81,13 +81,8 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                   <p className="text-sm font-bold italic text-gray-800 leading-relaxed">"{p.bio}"</p>
                 </div>
               </div>
-              {(p.goals.length > 0 || p.openTo.length > 0) && (
+              {p.openTo.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 pt-4 border-t border-gray-50">
-                  {p.goals.map(goal => (
-                    <span key={goal} className="text-[8px] font-bold uppercase px-2 py-0.5 bg-gray-50 text-gray-500 border border-gray-100">
-                      {goal}
-                    </span>
-                  ))}
                   {p.openTo.map(o => (
                     <span key={o} className="text-[8px] font-bold uppercase px-2 py-0.5 bg-[#ff4d00]/10 text-[#ff4d00] border border-[#ff4d00]/20">
                       {o}

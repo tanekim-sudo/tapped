@@ -9,8 +9,6 @@ interface ProfileEditModalProps {
 
 const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ profile, onSave, onClose }) => {
   const [bio, setBio] = useState(profile.bio);
-  const [goals, setGoals] = useState<string[]>(profile.goals);
-  const [goalInput, setGoalInput] = useState('');
   const [availability, setAvailability] = useState(profile.availabilityRules);
   const [openTo, setOpenTo] = useState<string[]>(profile.openTo);
   const [openToInput, setOpenToInput] = useState('');
@@ -28,17 +26,6 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ profile, onSave, on
     }
   };
 
-  const handleAddGoal = () => {
-    if (goalInput.trim() && !goals.includes(goalInput.trim())) {
-      setGoals([...goals, goalInput.trim()]);
-      setGoalInput('');
-    }
-  };
-
-  const handleRemoveGoal = (goal: string) => {
-    setGoals(goals.filter(g => g !== goal));
-  };
-
   const handleAddOpenTo = () => {
     if (openToInput.trim() && !openTo.includes(openToInput.trim())) {
       setOpenTo([...openTo, openToInput.trim()]);
@@ -53,7 +40,7 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ profile, onSave, on
   const handleSave = () => {
     onSave({
       bio: bio.trim(),
-      goals,
+      goals: [], // Always empty - networking is the sole goal
       availabilityRules: availability.trim(),
       openTo,
       photo: photo || undefined
@@ -137,47 +124,6 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ profile, onSave, on
               maxLength={300}
             />
             <p className="text-[8px] text-gray-400 mt-2">{bio.length}/300</p>
-          </div>
-
-          {/* Goals */}
-          <div>
-            <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 block">
-              Goals
-            </label>
-            <div className="flex gap-2 mb-3">
-              <input
-                type="text"
-                value={goalInput}
-                onChange={(e) => setGoalInput(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleAddGoal()}
-                placeholder="e.g., Code reviews, Career advice"
-                className="flex-1 p-3 border border-gray-200 focus:border-[#ff4d00] outline-none"
-              />
-              <button
-                onClick={handleAddGoal}
-                className="btn-brutal !bg-black !text-white px-4"
-              >
-                Add
-              </button>
-            </div>
-            {goals.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {goals.map(goal => (
-                  <span
-                    key={goal}
-                    className="inline-flex items-center gap-2 px-3 py-1 bg-gray-50 border border-gray-200 text-xs"
-                  >
-                    {goal}
-                    <button
-                      onClick={() => handleRemoveGoal(goal)}
-                      className="text-red-400 hover:text-red-600"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
           </div>
 
           {/* Availability */}
