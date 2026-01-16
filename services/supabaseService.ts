@@ -54,9 +54,23 @@ export const dbService = {
       if (error) throw error;
       if (!data) return null;
       
+      // Map profiles from database format to app format
+      const mappedProfiles = (data.profiles || []).map((p: any) => ({
+        id: p.id,
+        type: p.type,
+        bio: p.bio,
+        industry: p.industry || '',
+        topics: p.topics || [],
+        availabilityRules: p.availability_rules || '',
+        location: p.location || '',
+        openTo: p.open_to || [],
+        photo: p.photo,
+        isActive: p.is_active !== undefined ? p.is_active : true
+      }));
+      
       return {
         ...data,
-        profiles: data.profiles || [],
+        profiles: mappedProfiles,
         stats: data.stats || {
           conversationsCompleted: 0,
           peopleHelped: 0,
@@ -86,15 +100,27 @@ export const dbService = {
       // Insert profiles separately
       if (profiles && profiles.length > 0) {
         const profilesToInsert = profiles.map(p => ({
-          ...p,
-          user_id: user.id
+          id: p.id,
+          user_id: user.id,
+          type: p.type,
+          bio: p.bio,
+          industry: p.industry || null,
+          topics: p.topics || [],
+          availability_rules: p.availabilityRules || null,
+          location: p.location || null,
+          open_to: p.openTo || [],
+          photo: p.photo || null,
+          is_active: p.isActive !== undefined ? p.isActive : true
         }));
         
         const { error: profilesError } = await supabase
           .from('profiles')
           .insert(profilesToInsert);
         
-        if (profilesError) throw profilesError;
+        if (profilesError) {
+          console.error('Error inserting profiles:', profilesError);
+          throw profilesError;
+        }
       }
       
       return {
@@ -138,15 +164,27 @@ export const dbService = {
         // Insert new profiles
         if (profiles.length > 0) {
           const profilesToInsert = profiles.map(p => ({
-            ...p,
-            user_id: userId
+            id: p.id,
+            user_id: userId,
+            type: p.type,
+            bio: p.bio,
+            industry: p.industry || null,
+            topics: p.topics || [],
+            availability_rules: p.availabilityRules || null,
+            location: p.location || null,
+            open_to: p.openTo || [],
+            photo: p.photo || null,
+            is_active: p.isActive !== undefined ? p.isActive : true
           }));
           
           const { error: profilesError } = await supabase
             .from('profiles')
             .insert(profilesToInsert);
           
-          if (profilesError) throw profilesError;
+          if (profilesError) {
+            console.error('Error inserting profiles:', profilesError);
+            throw profilesError;
+          }
         }
       }
       
@@ -198,25 +236,28 @@ export const dbService = {
           id: connection.id,
           user_id: userId,
           name: connection.name,
-          tagline: connection.tagline,
+          tagline: connection.tagline || null,
           last_interaction: connection.lastInteraction.toISOString(),
-          private_notes: connection.privateNotes,
+          private_notes: connection.privateNotes || null,
           status: connection.status,
-          time_commitment: connection.timeCommitment,
-          introduced_by: connection.introducedBy
+          time_commitment: connection.timeCommitment || null,
+          introduced_by: connection.introducedBy || null
         }])
         .select()
         .single();
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error creating connection:', error);
+        throw error;
+      }
       
       return {
         id: data.id,
         userId: data.user_id,
         name: data.name,
-        tagline: data.tagline,
+        tagline: data.tagline || '',
         lastInteraction: new Date(data.last_interaction),
-        privateNotes: data.private_notes,
+        privateNotes: data.private_notes || '',
         status: data.status,
         timeCommitment: data.time_commitment,
         introducedBy: data.introduced_by
@@ -232,13 +273,13 @@ export const dbService = {
     
     try {
       const updateData: any = {};
-      if (updates.name) updateData.name = updates.name;
-      if (updates.tagline) updateData.tagline = updates.tagline;
+      if (updates.name !== undefined) updateData.name = updates.name;
+      if (updates.tagline !== undefined) updateData.tagline = updates.tagline || null;
       if (updates.lastInteraction) updateData.last_interaction = updates.lastInteraction.toISOString();
-      if (updates.privateNotes !== undefined) updateData.private_notes = updates.privateNotes;
+      if (updates.privateNotes !== undefined) updateData.private_notes = updates.privateNotes || null;
       if (updates.status) updateData.status = updates.status;
-      if (updates.timeCommitment) updateData.time_commitment = updates.timeCommitment;
-      if (updates.introducedBy !== undefined) updateData.introduced_by = updates.introducedBy;
+      if (updates.timeCommitment !== undefined) updateData.time_commitment = updates.timeCommitment || null;
+      if (updates.introducedBy !== undefined) updateData.introduced_by = updates.introducedBy || null;
       
       const { data, error } = await supabase
         .from('connections')
@@ -248,15 +289,18 @@ export const dbService = {
         .select()
         .single();
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error updating connection:', error);
+        throw error;
+      }
       
       return {
         id: data.id,
         userId: data.user_id,
         name: data.name,
-        tagline: data.tagline,
+        tagline: data.tagline || '',
         lastInteraction: new Date(data.last_interaction),
-        privateNotes: data.private_notes,
+        privateNotes: data.private_notes || '',
         status: data.status,
         timeCommitment: data.time_commitment,
         introducedBy: data.introduced_by
