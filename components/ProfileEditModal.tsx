@@ -9,6 +9,9 @@ interface ProfileEditModalProps {
 
 const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ profile, onSave, onClose }) => {
   const [bio, setBio] = useState(profile.bio);
+  const [industry, setIndustry] = useState(profile.industry || '');
+  const [topics, setTopics] = useState<string[]>(profile.topics || []);
+  const [topicInput, setTopicInput] = useState('');
   const [meetingTypes, setMeetingTypes] = useState(profile.availabilityRules);
   const [location, setLocation] = useState(profile.location || '');
   const [openTo, setOpenTo] = useState<string[]>(profile.openTo);
@@ -38,10 +41,22 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ profile, onSave, on
     setOpenTo(openTo.filter(o => o !== item));
   };
 
+  const handleAddTopic = () => {
+    if (topicInput.trim() && !topics.includes(topicInput.trim())) {
+      setTopics([...topics, topicInput.trim()]);
+      setTopicInput('');
+    }
+  };
+
+  const handleRemoveTopic = (topic: string) => {
+    setTopics(topics.filter(t => t !== topic));
+  };
+
   const handleSave = () => {
     onSave({
       bio: bio.trim(),
-      goals: [], // Always empty - networking is the sole goal
+      industry: industry.trim(),
+      topics,
       availabilityRules: meetingTypes.trim(),
       location: location.trim(),
       openTo,
@@ -126,6 +141,62 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ profile, onSave, on
               maxLength={300}
             />
             <p className="text-[8px] text-gray-400 mt-2">{bio.length}/300</p>
+          </div>
+
+          {/* Industry */}
+          <div>
+            <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 block">
+              Industry
+            </label>
+            <input
+              type="text"
+              value={industry}
+              onChange={(e) => setIndustry(e.target.value)}
+              placeholder="e.g., Tech, VC, Education"
+              className="w-full p-3 border border-gray-200 focus:border-[#ff4d00] outline-none"
+              maxLength={50}
+            />
+          </div>
+
+          {/* Topics */}
+          <div>
+            <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 block">
+              Topics
+            </label>
+            <div className="flex gap-2 mb-3">
+              <input
+                type="text"
+                value={topicInput}
+                onChange={(e) => setTopicInput(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleAddTopic()}
+                placeholder="e.g., Startups, AI, Networking"
+                className="flex-1 p-3 border border-gray-200 focus:border-[#ff4d00] outline-none"
+              />
+              <button
+                onClick={handleAddTopic}
+                className="btn-brutal !bg-black !text-white px-4"
+              >
+                Add
+              </button>
+            </div>
+            {topics.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {topics.map(item => (
+                  <span
+                    key={item}
+                    className="inline-flex items-center gap-2 px-3 py-1 bg-gray-50 border border-gray-200 text-xs"
+                  >
+                    {item}
+                    <button
+                      onClick={() => handleRemoveTopic(item)}
+                      className="text-red-400 hover:text-red-600"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Meeting Types */}

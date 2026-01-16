@@ -17,7 +17,9 @@ import { dataService } from './services/dataService';
 import { onboardingService } from './services/onboardingService';
 
 const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'BOARD' | 'NETWORK' | 'PROFILE' | 'RULES'>('BOARD');
+  const [activeTab, setActiveTab] = useState<'SIGNALS' | 'SEARCH'>('SIGNALS');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchFilter, setSearchFilter] = useState<'industry' | 'topic'>('industry');
   const [user, setUser] = useState<User | null>(null);
   const [activeProfileId, setActiveProfileId] = useState<string>('');
   const [signals, setSignals] = useState<Signal[]>([]);
@@ -159,7 +161,6 @@ const App: React.FC = () => {
     );
   }
 
-  const canAfford = user.stats.reciprocityCredits > 0;
   const activeProfile = user.profiles.find(p => p.id === activeProfileId) || (user.profiles[0] || null);
   // Get active signals for current profile (separate OFFER and ASK)
   const activeOfferSignal = signals.find(s => 
@@ -199,10 +200,6 @@ const App: React.FC = () => {
   });
 
   const handleConnectRequest = (target: any) => {
-    if (!canAfford) {
-      alert('You need at least 1 reciprocity credit to send a connection request. Respond to messages to earn credits.');
-      return;
-    }
     setSelectedRecipient(target);
     setShowIntroModal(true);
     setIntroText('');
@@ -248,7 +245,6 @@ const App: React.FC = () => {
         name: selectedRecipient.user.name,
         tagline: selectedRecipient.user.tagline || selectedRecipient.user.profiles[0]?.bio || '',
         lastInteraction: new Date(),
-        ranking: 3,
         privateNotes: `Initial intro: "${introText}"`,
         status: 'PENDING'
       };
@@ -274,12 +270,6 @@ const App: React.FC = () => {
     setShowIntroModal(false);
     setSelectedRecipient(null);
     setIntroText('');
-    const updatedUser = {
-      ...user,
-      stats: { ...user.stats, reciprocityCredits: Math.max(0, user.stats.reciprocityCredits - 1) }
-    };
-    setUser(updatedUser);
-    authService.updateUser(user.id, updatedUser);
   };
 
   const updateConnection = (id: string, updates: Partial<NetworkConnection>) => {
@@ -317,7 +307,8 @@ const App: React.FC = () => {
       id: `profile_${Date.now()}`,
       type: ContextType.PROFESSIONAL,
       bio: '',
-      goals: [],
+      industry: '',
+      topics: [],
       availabilityRules: '',
       location: '',
       openTo: [],
@@ -414,10 +405,8 @@ const App: React.FC = () => {
 
         <div id="nav-tabs" className="flex lg:flex-col gap-4 lg:gap-6 flex-wrap lg:flex-grow">
           {[
-            { id: 'BOARD', label: 'Signals' },
-            { id: 'NETWORK', label: 'Connections' },
-            { id: 'PROFILE', label: 'Profile' },
-            { id: 'RULES', label: 'Rules' },
+            { id: 'SIGNALS', label: 'Signals' },
+            { id: 'SEARCH', label: 'Search' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -453,25 +442,10 @@ const App: React.FC = () => {
             </div>
           </div>
           
-          <div className="p-2 bg-gray-50 border border-gray-200">
-            <p className="text-xs font-black uppercase text-gray-400 mb-1">Response Rate</p>
-            <p className={`text-lg font-black ${user.stats.responseRate >= 90 ? 'text-[#ff4d00]' : 'text-gray-600'}`}>
-              {user.stats.responseRate}%
-            </p>
-          </div>
-          <div className={`p-3 text-center border ${
-            user.stats.reciprocityCredits === 0 
-              ? 'bg-red-50 text-red-600 border-red-300' 
-              : user.stats.reciprocityCredits < 3 
-              ? 'bg-yellow-50 text-yellow-700 border-yellow-300' 
-              : 'bg-gray-50 text-gray-600 border-gray-200'
-          }`}>
-            <p className="text-xs font-black uppercase mb-1">Credits</p>
-            <p className="text-2xl font-black mb-1">{user.stats.reciprocityCredits}</p>
-            <p className="text-[9px] font-medium">
-              {user.stats.reciprocityCredits === 0 
-                ? 'Respond to earn' 
-                : 'Required to connect'}
+          <div className="p-3 text-center border bg-gray-50 border-gray-200">
+            <p className="text-xs font-black uppercase mb-1">Trust-Based</p>
+            <p className="text-[9px] font-medium text-gray-600">
+              Networking from goodwill
             </p>
           </div>
           <div className="flex flex-col gap-2">
@@ -503,92 +477,159 @@ const App: React.FC = () => {
         
         <header className="mb-8">
           <h2 className="text-3xl font-black uppercase tracking-tighter mb-3">
-            {activeTab === 'BOARD' && 'Signals'}
-            {activeTab === 'NETWORK' && 'Connections'}
-            {activeTab === 'PROFILE' && 'Profile'}
-            {activeTab === 'RULES' && 'Rules'}
+            {activeTab === 'SIGNALS' && 'Signals'}
+            {activeTab === 'SEARCH' && 'Search'}
           </h2>
 
           <p className="text-sm font-medium max-w-xl text-gray-500">
-            {activeTab === 'BOARD' && 'Browse active signals and connect with others.'}
-            {activeTab === 'NETWORK' && 'Your established connections.'}
-            {activeTab === 'PROFILE' && 'Manage your profiles and signals.'}
-            {activeTab === 'RULES' && 'The protocol for how Tapped works.'}
+            {activeTab === 'SIGNALS' && 'Send signals or browse active signals from the community.'}
+            {activeTab === 'SEARCH' && 'Find people by industry or topic.'}
           </p>
         </header>
 
 
         <section className="min-h-[50vh]">
-          {activeTab === 'BOARD' && (
+          {activeTab === 'SIGNALS' && (
             <div className="space-y-12">
+              {/* User's own signals */}
+              {user && (
+                <div className="brutal-card p-6 bg-white">
+                  <h4 className="text-sm font-black uppercase mb-4">Your Signals</h4>
+                  {activeOfferSignal || activeAskSignal ? (
+                    <div className="space-y-4">
+                      {activeOfferSignal && (
+                        <div className="p-4 border-l-4 border-[#ff4d00] bg-gray-50">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-[7px] font-black uppercase px-2 py-1 bg-[#ff4d00] text-white">OFFER</span>
+                            <span className="text-xs text-gray-400">
+                              {Math.max(0, Math.floor((new Date(activeOfferSignal.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60)))}h left
+                            </span>
+                          </div>
+                          <p className="text-sm font-bold italic">&quot;{activeOfferSignal.content}&quot;</p>
+                        </div>
+                      )}
+                      {activeAskSignal && (
+                        <div className="p-4 border-l-4 border-black bg-gray-50">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-[7px] font-black uppercase px-2 py-1 bg-white border border-black">ASK</span>
+                            <span className="text-xs text-gray-400">
+                              {Math.max(0, Math.floor((new Date(activeAskSignal.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60)))}h left
+                            </span>
+                          </div>
+                          <p className="text-sm font-bold italic">&quot;{activeAskSignal.content}&quot;</p>
+                        </div>
+                      )}
+                      <button 
+                        onClick={() => {
+                          setEditingSignal(null);
+                          setShowSignalModal(true);
+                        }}
+                        className="btn-brutal"
+                      >
+                        {activeOfferSignal && activeAskSignal ? 'Edit Signals' : 'Create Signal'}
+                      </button>
+                    </div>
+                  ) : (
+                    <button 
+                      onClick={() => {
+                        setEditingSignal(null);
+                        setShowSignalModal(true);
+                      }}
+                      className="btn-brutal w-full"
+                    >
+                      Create Your First Signal
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* All active signals */}
               <div id="board-signals">
                 <div className="flex justify-between items-center mb-4">
-                  <h4 className="text-sm font-black uppercase tracking-tight">Active Signals</h4>
+                  <h4 className="text-sm font-black uppercase tracking-tight">Community Signals</h4>
                 </div>
-                {activeSignals.length > 0 ? (
+                {activeSignals.filter(s => s.userId !== user?.id).length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {activeSignals.map(s => (
+                    {activeSignals.filter(s => s.userId !== user?.id).map(s => (
                       <SignalCard key={s.id} signal={s} onRespond={handleSignalResponse} />
                     ))}
                   </div>
                 ) : (
                   <div className="brutal-card p-12 text-center bg-gray-50">
-                    <p className="text-sm font-bold text-gray-400 italic">No active signals. Check back later.</p>
-                  </div>
-                )}
-              </div>
-
-              <div id="board-directory" className="pt-8 border-t border-gray-200 mt-8">
-                <div className="flex justify-between items-center mb-4">
-                  <h4 className="text-sm font-black uppercase tracking-tight">Directory</h4>
-                  <input 
-                    type="text" 
-                    placeholder="Search..." 
-                    value={boardFilter}
-                    onChange={(e) => setBoardFilter(e.target.value)}
-                    className="px-3 py-1 text-xs border border-gray-200 focus:border-[#ff4d00] outline-none" 
-                  />
-                </div>
-                {filteredDiscoveryUsers.length > 0 ? (
-                  filteredDiscoveryUsers.map(u => (
-                  <ProfileCard 
-                    key={u.id} 
-                    user={u} 
-                    onConnect={(usr, prof) => handleConnectRequest({ user: usr, profile: prof })} 
-                    canAfford={canAfford}
-                  />
-                  ))
-                ) : (
-                  <div className="brutal-card p-12 text-center bg-gray-50">
-                    <p className="text-sm font-bold text-gray-400 italic">No nodes match your filter.</p>
+                    <p className="text-sm font-bold text-gray-400 italic">No active signals. Be the first to post one!</p>
                   </div>
                 )}
               </div>
             </div>
           )}
 
-          {activeTab === 'NETWORK' && (
+          {activeTab === 'SEARCH' && user && (
             <div>
-              <div className="mb-6 p-4 bg-gray-50 border-l-4 border-[#ff4d00]">
-                <p className="text-[8px] font-black uppercase text-gray-400 mb-1">Private Network Ledger</p>
-                <p className="text-[9px] font-bold text-gray-600">
-                  These are your established connections. Track private notes and rankings. Response rate and reply time matter here—they&apos;re your reputation.
-                </p>
+              <div className="mb-6 space-y-4">
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setSearchFilter('industry')}
+                    className={`btn-brutal flex-1 ${searchFilter === 'industry' ? '!bg-black !text-white' : ''}`}
+                  >
+                    Industry
+                  </button>
+                  <button
+                    onClick={() => setSearchFilter('topic')}
+                    className={`btn-brutal flex-1 ${searchFilter === 'topic' ? '!bg-black !text-white' : ''}`}
+                  >
+                    Topic
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  placeholder={searchFilter === 'industry' ? 'Search by industry (e.g., Tech, VC, Education)...' : 'Search by topic (e.g., Startups, AI, Networking)...'}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full p-4 border-2 border-gray-200 focus:border-[#ff4d00] outline-none text-sm"
+                />
               </div>
-              <NetworkView 
-                connections={filteredConnections} 
-                onUpdate={updateConnection}
-                filter={networkFilter}
-                onFilterChange={setNetworkFilter}
-                statusFilter={networkStatusFilter}
-                onStatusFilterChange={setNetworkStatusFilter}
-                onTerminate={handleTerminateConnection}
-              />
+
+              {searchQuery.trim() ? (
+                <div className="space-y-3">
+                  {discoveryUsers
+                    .filter(u => {
+                      if (searchFilter === 'industry') {
+                        return u.profiles.some(p => 
+                          p.industry?.toLowerCase().includes(searchQuery.toLowerCase())
+                        );
+                      } else {
+                        return u.profiles.some(p => 
+                          p.topics?.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()))
+                        );
+                      }
+                    })
+                    .map(u => {
+                      const matchingProfile = u.profiles.find(p => 
+                        searchFilter === 'industry' 
+                          ? p.industry?.toLowerCase().includes(searchQuery.toLowerCase())
+                          : p.topics?.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()))
+                      ) || u.profiles[0];
+                      return (
+                        <ProfileCard 
+                          key={u.id} 
+                          user={u} 
+                          onConnect={(usr, prof) => handleConnectRequest({ user: usr, profile: prof })} 
+                          canAfford={true}
+                        />
+                      );
+                    })}
+                </div>
+              ) : (
+                <div className="brutal-card p-12 text-center bg-gray-50">
+                  <p className="text-sm font-bold text-gray-400 italic">Enter a search term to find people by {searchFilter}.</p>
+                </div>
+              )}
             </div>
           )}
 
-          {activeTab === 'PROFILE' && user && (
-            <div id="profile-view">
+          {/* Profile management - accessible from signals tab */}
+          {user && activeTab === 'SIGNALS' && (
+            <div className="mt-12 pt-8 border-t border-gray-200">
               <ProfileView 
                 user={user} 
                 activeProfileId={activeProfileId || (user.profiles[0]?.id || '')} 
@@ -702,16 +743,11 @@ const App: React.FC = () => {
                 </button>
                 <button 
                   onClick={handleSendIntro}
-                  disabled={!introText.trim() || !canAfford}
+                  disabled={!introText.trim()}
                   className="btn-brutal flex-1 !bg-black !text-white disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {!canAfford ? 'Insufficient Credits — Respond to Earn' : `Dispatch Sync Signal (-1 Credit)`}
+                  Send Message
                 </button>
-                {!canAfford && (
-                  <p className="text-[8px] text-red-500 font-bold text-center mt-2">
-                    Reciprocity Credits required. Respond to messages to earn credits. This ensures everyone stays reachable.
-                  </p>
-                )}
               </div>
             </div>
           </div>

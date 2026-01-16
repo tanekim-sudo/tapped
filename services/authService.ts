@@ -25,11 +25,8 @@ export const authService = {
       avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}`,
       tagline: '',
       stats: {
-        responseRate: 100,
-        medianReplyTime: '0m',
         conversationsCompleted: 0,
-        peopleHelped: 0,
-        reciprocityCredits: 5 // Starting credits
+        peopleHelped: 0
       },
       profiles: []
     };

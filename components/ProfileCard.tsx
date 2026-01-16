@@ -4,10 +4,10 @@ import { User, ContextProfile } from '../types';
 interface ProfileCardProps {
   user: User;
   onConnect: (user: User, profile: ContextProfile) => void;
-  canAfford: boolean;
+  canAfford?: boolean;
 }
 
-const ProfileCard: React.FC<ProfileCardProps> = ({ user, onConnect, canAfford }) => {
+const ProfileCard: React.FC<ProfileCardProps> = ({ user, onConnect, canAfford = true }) => {
   const primaryProfile = user.profiles[0];
   const initials = user.name.split(' ').map(n => n[0]).join('');
 
@@ -38,6 +38,25 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ user, onConnect, canAfford })
           {primaryProfile?.bio}
         </p>
 
+        {primaryProfile?.industry && (
+          <p className="text-[9px] font-bold text-gray-600 mb-2">
+            <span className="text-gray-400">Industry: </span>{primaryProfile.industry}
+          </p>
+        )}
+        
+        {primaryProfile?.topics && primaryProfile.topics.length > 0 && (
+          <div className="mb-3">
+            <p className="text-[9px] font-bold text-gray-400 mb-1">Topics:</p>
+            <div className="flex flex-wrap gap-2">
+              {primaryProfile.topics.map(topic => (
+                <span key={topic} className="text-[8px] font-bold uppercase px-2 py-0.5 bg-gray-100 text-gray-600 border border-gray-200">
+                  {topic}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         {(primaryProfile?.availabilityRules || primaryProfile?.location) && (
           <div className="mb-3 space-y-1">
             {primaryProfile.availabilityRules && (
@@ -52,26 +71,18 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ user, onConnect, canAfford })
             )}
           </div>
         )}
-
-        <div className="flex flex-wrap gap-3">
-          {primaryProfile?.openTo.map(tag => (
-            <span key={tag} className="handwritten text-sm text-[#ff4d00] opacity-40">
-              #{tag.toLowerCase().replace(/\s+/g, '_')}
-            </span>
-          ))}
-        </div>
       </div>
 
       <div className="w-full sm:w-28 sm:border-l border-gray-100 sm:pl-4 flex flex-col justify-center items-center text-center">
-        <div className="mb-3">
-          <p className="text-xs font-black">{user.stats.responseRate}%</p>
-          <p className="text-[9px] text-gray-400">response</p>
-        </div>
+        {primaryProfile?.industry && (
+          <div className="mb-3">
+            <p className="text-xs font-black">{primaryProfile.industry}</p>
+            <p className="text-[9px] text-gray-400">industry</p>
+          </div>
+        )}
         <button 
           onClick={() => onConnect(user, primaryProfile)}
-          disabled={!canAfford}
-          className="btn-brutal w-full !text-xs !py-2 disabled:opacity-30 disabled:cursor-not-allowed"
-          title={!canAfford ? 'Insufficient credits. Respond to messages to earn credits.' : ''}
+          className="btn-brutal w-full !text-xs !py-2"
         >
           Connect
         </button>

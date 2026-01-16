@@ -7,18 +7,16 @@ export enum ContextType {
 }
 
 export interface UserStats {
-  responseRate: number; // 0-100
-  medianReplyTime: string; // e.g., "3h"
   conversationsCompleted: number;
   peopleHelped: number;
-  reciprocityCredits: number; // 0-100
 }
 
 export interface ContextProfile {
   id: string;
   type: ContextType;
   bio: string;
-  goals: string[];
+  industry: string; // e.g., "Tech", "VC", "Education"
+  topics: string[]; // e.g., ["Startups", "AI", "Networking"]
   availabilityRules: string; // Meeting types (e.g., "Coffee chats, Video calls, In-person")
   location: string; // Where you are located / where you can meet
   openTo: string[];
@@ -52,7 +50,6 @@ export interface NetworkConnection {
   name: string;
   tagline: string;
   lastInteraction: Date;
-  ranking: number; // 1-5
   privateNotes: string;
   status: 'ACTIVE' | 'PENDING' | 'CLOSED';
 }

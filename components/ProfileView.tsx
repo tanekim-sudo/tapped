@@ -88,6 +88,22 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                     </div>
                   </div>
                   <p className="text-sm font-bold italic text-gray-800 leading-relaxed mb-2">"{p.bio}"</p>
+                  {p.industry && (
+                    <p className="text-[9px] font-bold text-gray-600 mb-1">
+                      <span className="text-gray-400">Industry: </span>{p.industry}
+                    </p>
+                  )}
+                  {p.topics && p.topics.length > 0 && (
+                    <div className="mb-2">
+                      <div className="flex flex-wrap gap-1">
+                        {p.topics.map(topic => (
+                          <span key={topic} className="text-[8px] font-bold uppercase px-2 py-0.5 bg-gray-100 text-gray-600 border border-gray-200">
+                            {topic}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   {(p.availabilityRules || p.location) && (
                     <div className="space-y-1 mt-2">
                       {p.availabilityRules && (
@@ -231,11 +247,10 @@ const ProfileView: React.FC<ProfileViewProps> = ({
       </section>
 
       {/* Stats Block */}
-      <section className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t border-gray-100 pt-12">
+      <section className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-gray-100 pt-12">
         {[
-          { label: 'Sync Efficiency', val: `${user.stats.responseRate}%`, sub: 'Real-time reliability' },
-          { label: 'Avg Latency', val: user.stats.medianReplyTime, sub: 'Protocol average: 3h' },
-          { label: 'Mesh Credits', val: user.stats.reciprocityCredits, sub: 'Refill by responding' }
+          { label: 'Conversations', val: user.stats.conversationsCompleted, sub: 'Completed' },
+          { label: 'People Helped', val: user.stats.peopleHelped, sub: 'Connections made' }
         ].map(stat => (
           <div key={stat.label}>
             <span className="text-[8px] font-black uppercase text-gray-300 tracking-[0.2em] mb-1 block">{stat.label}</span>

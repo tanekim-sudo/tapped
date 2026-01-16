@@ -53,24 +53,12 @@ const NetworkView: React.FC<NetworkViewProps> = ({
           <div key={conn.id} className="brutal-card p-6 bg-white flex flex-col md:flex-row gap-6 items-stretch border-gray-100">
             {/* Metadata */}
             <div className="w-full md:w-56 flex flex-col">
-              <div className="flex items-center justify-between mb-1">
+              <div className="mb-1">
                 <h4 className="font-bold text-xs uppercase truncate pr-2">{conn.name}</h4>
-                <div className="flex gap-0.5">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button 
-                      key={star}
-                      onClick={() => onUpdate(conn.id, { ranking: star })}
-                      className={`text-[10px] ${conn.ranking >= star ? 'text-[#ff4d00]' : 'text-gray-100 hover:text-[#ff4d00]'}`}
-                    >
-                      ★
-                    </button>
-                  ))}
-                </div>
               </div>
               <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider mb-2">{conn.tagline}</p>
               <div className="mt-2 pt-2 border-t border-gray-50">
                 <p className="text-[8px] text-gray-300 font-black uppercase mb-1">Last Sync: {conn.lastInteraction.toLocaleDateString()}</p>
-                <p className="text-[7px] text-gray-400 italic">Response time matters. Fast replies = better reputation.</p>
               </div>
             </div>
 
