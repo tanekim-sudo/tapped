@@ -11,10 +11,15 @@ export const dataService = {
     if (!stored) return [];
     
     const signals = JSON.parse(stored);
-    // Convert expiresAt strings back to Date objects
-    return signals.map((s: Signal) => ({
+    // Convert Date strings back to Date objects
+    return signals.map((s: any) => ({
       ...s,
-      expiresAt: new Date(s.expiresAt)
+      expiresAt: new Date(s.expiresAt),
+      createdAt: s.createdAt ? new Date(s.createdAt) : new Date(),
+      responses: (s.responses || []).map((r: any) => ({
+        ...r,
+        respondedAt: new Date(r.respondedAt)
+      }))
     }));
   },
 

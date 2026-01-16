@@ -8,10 +8,11 @@ interface ProfileViewProps {
   onCreateProfile: () => void;
   onUpdateProfile: (id: string, updates: Partial<ContextProfile>) => void;
   onEditProfile: (profile: ContextProfile) => void;
-  activeSignal: Signal | undefined;
-  onCreateSignal: () => void;
-  onEditSignal: () => void;
-  onDeleteSignal: () => void;
+  activeOfferSignal: Signal | undefined;
+  activeAskSignal: Signal | undefined;
+  onCreateSignal: (type: 'OFFER' | 'ASK') => void;
+  onEditSignal: (signal: Signal) => void;
+  onDeleteSignal: (signalId: string) => void;
 }
 
 const ProfileView: React.FC<ProfileViewProps> = ({ 
@@ -20,12 +21,20 @@ const ProfileView: React.FC<ProfileViewProps> = ({
   onSelectProfile,
   onCreateProfile,
   onEditProfile,
-  activeSignal,
+  activeOfferSignal,
+  activeAskSignal,
   onCreateSignal,
   onEditSignal,
   onDeleteSignal
 }) => {
-  const hoursLeft = activeSignal ? Math.max(0, Math.floor((new Date(activeSignal.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60))) : 0;
+  const getHoursLeft = (signal: Signal | undefined) => 
+    signal ? Math.max(0, Math.floor((new Date(signal.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60))) : 0;
+  
+  const getHitRate = (signal: Signal | undefined) => {
+    if (!signal || !signal.responses || signal.responses.length === 0) return 0;
+    const accepted = signal.responses.filter(r => r.status === 'ACCEPTED').length;
+    return Math.round((accepted / signal.responses.length) * 100);
+  };
   return (
     <div className="space-y-12 fade-in">
       {/* Operating Contexts / Nodes */}
@@ -109,44 +118,116 @@ const ProfileView: React.FC<ProfileViewProps> = ({
         </div>
       </section>
 
-      {/* Broadcast Signal */}
-      <section>
-        <div className="flex justify-between items-center mb-4">
-          <h4 className="text-sm font-black uppercase">Active Signal</h4>
-          {activeSignal && (
-            <span className="text-xs font-bold text-gray-400">
-              {hoursLeft}h left
-            </span>
+      {/* Broadcast Signals - Separate OFFER and ASK */}
+      <section className="space-y-6">
+        <h4 className="text-sm font-black uppercase mb-4">Signals</h4>
+        
+        {/* OFFER Signal */}
+        <div className="brutal-card p-6 bg-white border-black">
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex items-center gap-2">
+              <span className="text-[7px] font-black uppercase px-2 py-1 bg-[#ff4d00] text-white border border-[#ff4d00]">
+                OFFER
+              </span>
+              {activeOfferSignal && (
+                <span className="text-xs font-bold text-gray-400">
+                  {getHoursLeft(activeOfferSignal)}h left
+                </span>
+              )}
+            </div>
+            {activeOfferSignal && (
+              <span className="text-[9px] font-bold text-gray-600">
+                {getHitRate(activeOfferSignal)}% hit rate ({activeOfferSignal.responses?.length || 0} responses)
+              </span>
+            )}
+          </div>
+          {activeOfferSignal ? (
+            <>
+              <p className="text-lg font-bold tracking-tight italic text-gray-900 leading-snug mb-4">
+                &quot;{activeOfferSignal.content}&quot;
+              </p>
+              {activeOfferSignal.responses && activeOfferSignal.responses.length > 0 && (
+                <div className="mb-4 p-3 bg-gray-50 border-l-2 border-[#ff4d00]">
+                  <p className="text-[8px] font-black uppercase text-gray-400 mb-2">Accepted by:</p>
+                  <div className="space-y-1">
+                    {activeOfferSignal.responses.filter(r => r.status === 'ACCEPTED').map((r, idx) => (
+                      <p key={idx} className="text-xs font-bold text-gray-700">{r.userName}</p>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="flex gap-4">
+                <button onClick={() => onEditSignal(activeOfferSignal)} className="btn-brutal">Modify</button>
+                <button 
+                  onClick={() => onDeleteSignal(activeOfferSignal.id)}
+                  className="text-[9px] font-bold text-gray-300 hover:text-red-500 uppercase tracking-widest ml-auto"
+                >
+                  Delete
+                </button>
+              </div>
+            </>
+          ) : (
+            <button onClick={() => onCreateSignal('OFFER')} className="btn-brutal w-full">
+              Create OFFER Signal
+            </button>
           )}
         </div>
-        {activeSignal ? (
-          <div className="brutal-card p-8 bg-white border-black">
-            <div className="flex items-center gap-2 mb-4">
-              <span className={`text-[7px] font-black uppercase px-1 py-0.5 border border-black ${activeSignal.type === 'OFFER' ? 'bg-[#ff4d00] text-white border-[#ff4d00]' : 'bg-white'}`}>
-                {activeSignal.type}
+
+        {/* ASK Signal */}
+        <div className="brutal-card p-6 bg-white border-gray-200">
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex items-center gap-2">
+              <span className="text-[7px] font-black uppercase px-2 py-1 bg-white border border-black">
+                ASK
               </span>
+              {activeAskSignal && (
+                <span className="text-xs font-bold text-gray-400">
+                  {getHoursLeft(activeAskSignal)}h left
+                </span>
+              )}
             </div>
-            <p className="text-xl font-bold tracking-tight italic text-gray-900 leading-snug">
-              "{activeSignal.content}"
-            </p>
-            <div className="mt-8 flex gap-4">
-              <button onClick={onEditSignal} className="btn-brutal">Modify Intent</button>
-              <button 
-                onClick={onDeleteSignal}
-                className="text-[9px] font-bold text-gray-300 hover:text-red-500 uppercase tracking-widest ml-auto"
-              >
-                Kill Signal
-              </button>
-            </div>
+            {activeAskSignal && (
+              <span className="text-[9px] font-bold text-gray-600">
+                {getHitRate(activeAskSignal)}% hit rate ({activeAskSignal.responses?.length || 0} responses)
+              </span>
+            )}
           </div>
-        ) : (
-          <div className="brutal-card p-8 bg-gray-50 border-gray-200 text-center">
-            <p className="text-sm font-bold text-gray-400 italic mb-4">No active signal</p>
-            <button onClick={onCreateSignal} className="btn-brutal">
-              Broadcast Signal
+          {activeAskSignal ? (
+            <>
+              <p className="text-lg font-bold tracking-tight italic text-gray-900 leading-snug mb-4">
+                &quot;{activeAskSignal.content}&quot;
+              </p>
+              {activeAskSignal.responses && activeAskSignal.responses.length > 0 && (
+                <div className="mb-4 p-3 bg-gray-50 border-l-2 border-[#ff4d00]">
+                  <p className="text-[8px] font-black uppercase text-gray-400 mb-2">Accepted by:</p>
+                  <div className="space-y-1">
+                    {activeAskSignal.responses.filter(r => r.status === 'ACCEPTED').map((r, idx) => (
+                      <p key={idx} className="text-xs font-bold text-gray-700">{r.userName}</p>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="flex gap-4">
+                <button onClick={() => onEditSignal(activeAskSignal)} className="btn-brutal">Modify</button>
+                <button 
+                  onClick={() => onDeleteSignal(activeAskSignal.id)}
+                  className="text-[9px] font-bold text-gray-300 hover:text-red-500 uppercase tracking-widest ml-auto"
+                >
+                  Delete
+                </button>
+              </div>
+            </>
+          ) : (
+            <button 
+              onClick={() => onCreateSignal('ASK')} 
+              className="btn-brutal w-full"
+              disabled={!activeOfferSignal}
+              title={!activeOfferSignal ? 'You must create an OFFER signal first' : ''}
+            >
+              {!activeOfferSignal ? 'Create OFFER First' : 'Create ASK Signal'}
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </section>
 
       {/* Stats Block */}

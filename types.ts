@@ -26,14 +26,24 @@ export interface ContextProfile {
   photo?: string; // URL or base64 data URL for profile photo
 }
 
+export interface SignalResponse {
+  userId: string;
+  userName: string;
+  respondedAt: Date;
+  status: 'ACCEPTED' | 'DECLINED' | 'PENDING';
+}
+
 export interface Signal {
   id: string;
   userId: string;
   userName: string;
+  profileId: string; // Tied to specific profile
   contextType: ContextType;
   content: string;
   expiresAt: Date;
   type: 'OFFER' | 'ASK';
+  responses: SignalResponse[]; // Track who responded
+  createdAt: Date;
 }
 
 export interface NetworkConnection {

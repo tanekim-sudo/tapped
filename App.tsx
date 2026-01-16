@@ -161,7 +161,19 @@ const App: React.FC = () => {
 
   const canAfford = user.stats.reciprocityCredits > 0;
   const activeProfile = user.profiles.find(p => p.id === activeProfileId) || (user.profiles[0] || null);
-  const activeSignal = signals.find(s => s.userId === user.id && new Date(s.expiresAt) > new Date());
+  // Get active signals for current profile (separate OFFER and ASK)
+  const activeOfferSignal = signals.find(s => 
+    s.userId === user.id && 
+    s.profileId === activeProfileId && 
+    s.type === 'OFFER' && 
+    new Date(s.expiresAt) > new Date()
+  );
+  const activeAskSignal = signals.find(s => 
+    s.userId === user.id && 
+    s.profileId === activeProfileId && 
+    s.type === 'ASK' && 
+    new Date(s.expiresAt) > new Date()
+  );
   
   // Filter signals (exclude expired)
   const activeSignals = signals.filter(s => new Date(s.expiresAt) > new Date());
@@ -254,6 +266,11 @@ const App: React.FC = () => {
       dataService.saveConnection(user.id, updated);
     }
     
+    // Track signal response if responding to a signal
+    if (selectedRecipient?.signal) {
+      handleSignalAccepted(selectedRecipient.signal.id);
+    }
+    
     setShowIntroModal(false);
     setSelectedRecipient(null);
     setIntroText('');
@@ -328,31 +345,51 @@ const App: React.FC = () => {
   const handleCreateSignal = (content: string, type: 'OFFER' | 'ASK') => {
     if (!activeProfile) return;
     
-    if (activeSignal) {
+    // Enforce rule: Can't create ASK without first having an OFFER
+    if (type === 'ASK') {
+      const hasActiveOffer = signals.some(s => 
+        s.userId === user.id && 
+        s.profileId === activeProfileId && 
+        s.type === 'OFFER' && 
+        new Date(s.expiresAt) > new Date()
+      );
+      if (!hasActiveOffer) {
+        setError('You must create an OFFER signal before you can create an ASK signal.');
+        return;
+      }
+    }
+    
+    const existingSignal = type === 'OFFER' ? activeOfferSignal : activeAskSignal;
+    
+    if (existingSignal) {
       // Update existing signal
-      const updated = { ...activeSignal, content, type };
-      setSignals(prev => prev.map(s => s.id === activeSignal.id ? updated : s));
+      const updated = { 
+        ...existingSignal, 
+        content, 
+        type,
+        responses: existingSignal.responses || []
+      };
+      setSignals(prev => prev.map(s => s.id === existingSignal.id ? updated : s));
       dataService.saveSignal(updated);
     } else {
-      // Remove existing active signal for this profile
-      const expiredSignals = signals.filter(s => s.userId === user.id && new Date(s.expiresAt) > new Date());
-      expiredSignals.forEach(s => dataService.deleteSignal(s.id));
-      setSignals(prev => prev.filter(s => !(s.userId === user.id && new Date(s.expiresAt) > new Date())));
-      
       const newSignal: Signal = {
         id: `signal_${Date.now()}`,
         userId: user.id,
         userName: user.name,
+        profileId: activeProfileId,
         contextType: activeProfile?.type || ContextType.PROFESSIONAL,
         content,
         type,
-        expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 48) // 48 hours
+        expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 48), // 48 hours
+        responses: [],
+        createdAt: new Date()
       };
       setSignals(prev => [...prev, newSignal]);
       dataService.saveSignal(newSignal);
     }
     setShowSignalModal(false);
     setEditingSignal(null);
+    setError(null);
   };
 
   const handleDeleteSignal = (signalId: string) => {
@@ -560,20 +597,19 @@ const App: React.FC = () => {
                 onCreateProfile={handleCreateProfile}
                 onUpdateProfile={handleUpdateProfile}
                 onEditProfile={(profile) => setEditingProfile(profile)}
-                activeSignal={activeSignal}
-                onCreateSignal={() => {
-                  setEditingSignal(null);
+                activeOfferSignal={activeOfferSignal}
+                activeAskSignal={activeAskSignal}
+                onCreateSignal={(type) => {
+                  setEditingSignal({ content: '', type });
                   setShowSignalModal(true);
                 }}
-                onEditSignal={() => {
-                  if (activeSignal) {
-                    setEditingSignal({ content: activeSignal.content, type: activeSignal.type });
-                    setShowSignalModal(true);
-                  }
+                onEditSignal={(signal) => {
+                  setEditingSignal({ content: signal.content, type: signal.type });
+                  setShowSignalModal(true);
                 }}
-                onDeleteSignal={() => {
-                  if (activeSignal && window.confirm('Delete this signal? It will be removed immediately.')) {
-                    handleDeleteSignal(activeSignal.id);
+                onDeleteSignal={(signalId) => {
+                  if (window.confirm('Delete this signal? It will be removed immediately.')) {
+                    handleDeleteSignal(signalId);
                   }
                 }}
               />
@@ -693,7 +729,7 @@ const App: React.FC = () => {
           <div className="bg-white w-full max-w-2xl p-8 md:p-12 brutal-card !shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
             <div className="flex justify-between items-start mb-10">
               <h3 className="text-3xl font-black tracking-tighter uppercase leading-none">
-                {activeSignal ? 'Modify Signal' : 'Broadcast Signal'}
+                {editingSignal && (activeOfferSignal || activeAskSignal) ? 'Modify Signal' : 'Broadcast Signal'}
               </h3>
               <button 
                 onClick={() => { setShowSignalModal(false); setEditingSignal(null); }} 
@@ -710,23 +746,34 @@ const App: React.FC = () => {
                 <div className="flex gap-3">
                   <button
                     onClick={() => {
-                      const currentContent = editingSignal?.content ?? activeSignal?.content ?? '';
-                      setEditingSignal({ content: currentContent, type: 'ASK' });
-                    }}
-                    className={`btn-brutal flex-1 ${(editingSignal?.type ?? activeSignal?.type ?? 'ASK') === 'ASK' ? '!bg-black !text-white' : ''}`}
-                  >
-                    ASK
-                  </button>
-                  <button
-                    onClick={() => {
-                      const currentContent = editingSignal?.content ?? activeSignal?.content ?? '';
+                      const currentContent = editingSignal?.content ?? '';
                       setEditingSignal({ content: currentContent, type: 'OFFER' });
                     }}
-                    className={`btn-brutal flex-1 ${(editingSignal?.type ?? activeSignal?.type ?? 'ASK') === 'OFFER' ? '!bg-black !text-white' : ''}`}
+                    className={`btn-brutal flex-1 ${editingSignal?.type === 'OFFER' ? '!bg-black !text-white' : ''}`}
                   >
                     OFFER
                   </button>
+                  <button
+                    onClick={() => {
+                      const currentContent = editingSignal?.content ?? '';
+                      // Check if OFFER exists before allowing ASK
+                      if (!activeOfferSignal && editingSignal?.type !== 'OFFER') {
+                        setError('You must create an OFFER signal before creating an ASK signal.');
+                        return;
+                      }
+                      setEditingSignal({ content: currentContent, type: 'ASK' });
+                      setError(null);
+                    }}
+                    className={`btn-brutal flex-1 ${editingSignal?.type === 'ASK' ? '!bg-black !text-white' : ''} ${!activeOfferSignal && editingSignal?.type !== 'OFFER' ? 'opacity-50' : ''}`}
+                    disabled={!activeOfferSignal && editingSignal?.type !== 'OFFER'}
+                    title={!activeOfferSignal && editingSignal?.type !== 'OFFER' ? 'Create an OFFER first' : ''}
+                  >
+                    ASK {!activeOfferSignal && editingSignal?.type !== 'OFFER' && '(OFFER required)'}
+                  </button>
                 </div>
+                {error && editingSignal?.type === 'ASK' && !activeOfferSignal && (
+                  <p className="text-xs text-red-500 font-bold mt-2">{error}</p>
+                )}
               </div>
 
               <div>
@@ -736,9 +783,9 @@ const App: React.FC = () => {
                   <p className="text-[9px] font-bold text-gray-600">Short, specific, time-bound, actionable. NOT a post. Expires in 48h.</p>
                 </div>
                 <textarea 
-                  value={editingSignal?.content ?? activeSignal?.content ?? ''}
+                  value={editingSignal?.content ?? ''}
                   onChange={(e) => {
-                    const currentType = editingSignal?.type ?? activeSignal?.type ?? 'ASK';
+                    const currentType = editingSignal?.type ?? 'OFFER';
                     setEditingSignal({ content: e.target.value, type: currentType });
                   }}
                   placeholder="e.g., Looking for warm intro to infra-focused seed VCs this week."
@@ -746,7 +793,7 @@ const App: React.FC = () => {
                   maxLength={200}
                   autoFocus
                 />
-                <p className="text-[8px] text-gray-300 mt-2">{(editingSignal?.content ?? activeSignal?.content ?? '').length}/200</p>
+                <p className="text-[8px] text-gray-300 mt-2">{(editingSignal?.content ?? '').length}/200</p>
               </div>
 
               <div className="flex gap-3">
@@ -758,25 +805,11 @@ const App: React.FC = () => {
                       handleCreateSignal(content, type);
                     }
                   }}
-                  disabled={!(editingSignal?.content ?? activeSignal?.content ?? '').trim() || !(editingSignal?.type ?? activeSignal?.type)}
+                  disabled={!editingSignal?.content?.trim() || !editingSignal?.type}
                   className="btn-brutal flex-1 !bg-black !text-white disabled:opacity-50"
                 >
-                  {activeSignal ? 'Update Signal' : 'Broadcast'}
+                  {((activeOfferSignal && editingSignal?.type === 'OFFER') || (activeAskSignal && editingSignal?.type === 'ASK')) ? 'Update Signal' : 'Broadcast'}
                 </button>
-                {activeSignal && (
-                  <button 
-                    onClick={() => {
-                      if (window.confirm('Delete this signal? It will be removed immediately.')) {
-                        handleDeleteSignal(activeSignal.id);
-                        setShowSignalModal(false);
-                        setEditingSignal(null);
-                      }
-                    }}
-                    className="btn-brutal !bg-white !text-red-500 !border-red-300"
-                  >
-                    Delete
-                  </button>
-                )}
               </div>
             </div>
           </div>
