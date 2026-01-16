@@ -371,7 +371,7 @@ const App: React.FC = () => {
         <footer className="mt-32 pt-10 border-t border-gray-100 flex flex-col md:flex-row justify-between gap-8">
           <div className="space-y-1">
             <p className="text-[8px] font-black uppercase text-gray-200 tracking-[0.3em]">Tapped Protocol // 2025</p>
-            <p className="handwritten text-lg text-gray-300 italic">"Resolution > Conversation."</p>
+            <p className="handwritten text-lg text-gray-300 italic">&quot;Resolution &gt; Conversation.&quot;</p>
           </div>
           <div className="flex gap-8 handwritten text-lg text-[#ff4d00] items-end">
             <span className="cursor-pointer hover:underline opacity-50 hover:opacity-100">Whitepaper</span>
