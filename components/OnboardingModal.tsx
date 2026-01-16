@@ -73,8 +73,11 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, userName 
               <div>
                 <h2 className="text-3xl font-black mb-3 uppercase tracking-tighter">Create Your First Profile</h2>
                 <div className="p-4 bg-[#ff4d00]/5 border-l-4 border-[#ff4d00] mb-6">
-                  <p className="text-sm font-bold text-gray-700 leading-relaxed">
+                  <p className="text-sm font-bold text-gray-700 leading-relaxed mb-2">
                     This is just your <span className="text-[#ff4d00]">first networking identity</span>. You can create different profiles for different needs later (Professional, Builder, Learner, etc.). Each profile operates independently.
+                  </p>
+                  <p className="text-xs font-bold text-gray-600 italic">
+                    Key Differentiator: Unlike LinkedIn, profiles are contexts, not identities. One person, multiple networking intents.
                   </p>
                 </div>
               </div>

@@ -34,9 +34,16 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ user, onConnect, canAfford })
           </div>
         </div>
 
-        <p className="text-sm font-bold leading-snug tracking-tight text-gray-800 mb-4">
+        <p className="text-sm font-bold leading-snug tracking-tight text-gray-800 mb-3">
           {primaryProfile?.bio}
         </p>
+
+        {primaryProfile?.availabilityRules && (
+          <div className="mb-3 p-2 bg-gray-50 border-l-2 border-[#ff4d00]">
+            <p className="text-[7px] font-black uppercase text-gray-400 mb-0.5">Availability</p>
+            <p className="text-[9px] font-bold text-gray-600">{primaryProfile.availabilityRules}</p>
+          </div>
+        )}
 
         <div className="flex flex-wrap gap-3">
           {primaryProfile?.openTo.map(tag => (
@@ -49,8 +56,15 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ user, onConnect, canAfford })
 
       <div className="w-full sm:w-32 sm:border-l border-gray-50 sm:pl-6 flex flex-col justify-center items-center text-center">
         <div className="mb-4">
-          <p className="text-[7px] font-black text-gray-300 uppercase tracking-widest mb-0.5">Reach</p>
-          <span className="text-lg font-black">{user.stats.responseRate}%</span>
+          <p className="text-[7px] font-black text-gray-300 uppercase tracking-widest mb-0.5">Response Rate</p>
+          <span className={`text-lg font-black ${user.stats.responseRate >= 90 ? 'text-[#ff4d00]' : user.stats.responseRate >= 70 ? 'text-gray-700' : 'text-gray-400'}`}>
+            {user.stats.responseRate}%
+          </span>
+          <p className="text-[6px] text-gray-400 mt-1">Public reputation</p>
+        </div>
+        <div className="mb-3 text-center">
+          <p className="text-[6px] font-black text-gray-400 uppercase mb-1">Reply Time</p>
+          <span className="text-xs font-black">{user.stats.medianReplyTime}</span>
         </div>
         <button 
           onClick={() => onConnect(user, primaryProfile)}
@@ -58,8 +72,11 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ user, onConnect, canAfford })
           className="btn-brutal w-full !text-[8px] !py-1 disabled:opacity-30 disabled:cursor-not-allowed"
           title={!canAfford ? 'Insufficient credits. Respond to messages to earn credits.' : ''}
         >
-          Sync
+          Sync (-1 Credit)
         </button>
+        {!canAfford && (
+          <p className="text-[6px] text-red-400 mt-1 text-center">Respond to earn credits</p>
+        )}
       </div>
     </div>
   );

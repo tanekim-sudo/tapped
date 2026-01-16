@@ -67,9 +67,10 @@ const NetworkView: React.FC<NetworkViewProps> = ({
                   ))}
                 </div>
               </div>
-              <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider mb-auto">{conn.tagline}</p>
-              <div className="mt-4 pt-4 border-t border-gray-50">
-                <p className="text-[8px] text-gray-300 font-black uppercase">Established {conn.lastInteraction.toLocaleDateString()}</p>
+              <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider mb-2">{conn.tagline}</p>
+              <div className="mt-2 pt-2 border-t border-gray-50">
+                <p className="text-[8px] text-gray-300 font-black uppercase mb-1">Last Sync: {conn.lastInteraction.toLocaleDateString()}</p>
+                <p className="text-[7px] text-gray-400 italic">Response time matters. Fast replies = better reputation.</p>
               </div>
             </div>
 

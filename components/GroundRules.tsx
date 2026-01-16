@@ -80,9 +80,19 @@ const GroundRules: React.FC = () => {
           <h4 className="text-2xl font-black mb-6 uppercase tracking-tighter text-[#ff4d00]">
             The Protocol Constraint.
           </h4>
-          <p className="text-lg leading-relaxed font-bold italic opacity-80">
-            "These aren't suggestions. They are the codebase of this network. We optimize for high-bandwidth routing. Ignoring these norms is treated as a systemic failure."
+          <p className="text-lg leading-relaxed font-bold italic opacity-80 mb-6">
+            &quot;These aren&apos;t suggestions. They are the codebase of this network. We optimize for high-bandwidth routing. Ignoring these norms is treated as a systemic failure.&quot;
           </p>
+          <div className="pt-6 border-t border-white/20">
+            <p className="text-sm font-black uppercase mb-3 text-[#ff4d00]">Core Differentiators:</p>
+            <ul className="text-sm space-y-2 font-bold opacity-90">
+              <li>• Response is required, not optional. Your response rate is public reputation.</li>
+              <li>• Reciprocity credits: To send, you must respond. This solves ghosting.</li>
+              <li>• Signals are actionable intents, not posts. No feed, no engagement metrics.</li>
+              <li>• Multiple context profiles. One person, many networking intents.</li>
+              <li>• Intent-first discovery. Availability is visible. Everyone opted in.</li>
+            </ul>
+          </div>
         </div>
       </div>
     </div>

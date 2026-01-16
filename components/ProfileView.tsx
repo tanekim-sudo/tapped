@@ -102,11 +102,14 @@ const ProfileView: React.FC<ProfileViewProps> = ({
 
       {/* Broadcast Signal */}
       <section>
-        <div className="flex justify-between items-center mb-6">
-          <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Broadcast (Intent)</h4>
+        <div className="flex justify-between items-center mb-4">
+          <div>
+            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-1">Broadcast Signal</h4>
+            <p className="text-[8px] font-bold text-gray-500 italic">Time-bound intent. Not a post. Actionable only.</p>
+          </div>
           {activeSignal && (
             <span className="text-[9px] font-bold text-gray-300">
-              {activeSignal.type} Signal Active / Expiring in {hoursLeft}h
+              {activeSignal.type} / {hoursLeft}h left
             </span>
           )}
         </div>
@@ -138,7 +141,12 @@ const ProfileView: React.FC<ProfileViewProps> = ({
             </button>
           </div>
         )}
-        <p className="mt-4 handwritten text-sm text-gray-400">Signals are public, time-bound statements of intent.</p>
+        <div className="mt-4 p-3 bg-gray-50 border-l-4 border-[#ff4d00]">
+          <p className="text-[8px] font-black uppercase text-gray-400 mb-1">Signal Rules:</p>
+          <p className="text-[9px] font-bold text-gray-600 leading-relaxed">
+            Signals expire in 48h. No likes, no comments, no feed. Just actionable intents. If it&apos;s still relevant, re-signal.
+          </p>
+        </div>
       </section>
 
       {/* Stats Block */}

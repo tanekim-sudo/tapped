@@ -9,6 +9,8 @@ import LoginModal from './components/LoginModal';
 import OnboardingModal from './components/OnboardingModal';
 import Walkthrough from './components/Walkthrough';
 import ProfileEditModal from './components/ProfileEditModal';
+import DifferentiatorsBanner from './components/DifferentiatorsBanner';
+import KeyDifferentiators from './components/KeyDifferentiators';
 import { getIntroSuggestion } from './services/claudeService';
 import { authService } from './services/authService';
 import { dataService } from './services/dataService';
@@ -397,23 +399,44 @@ const App: React.FC = () => {
 
         <div className="mt-auto hidden lg:flex flex-col gap-4 pt-8 border-t border-gray-50">
           <div className="flex items-center gap-3">
-            <div className="w-7 h-7 border border-black flex items-center justify-center font-black bg-white text-[9px]">
-              {user.name.split(' ').map(n => n[0]).join('')}
-            </div>
+            {activeProfile?.photo ? (
+              <img 
+                src={activeProfile.photo} 
+                alt={user.name}
+                className="w-7 h-7 rounded-full object-cover border border-black"
+              />
+            ) : (
+              <div className="w-7 h-7 border border-black flex items-center justify-center font-black bg-white text-[9px] rounded-full">
+                {user.name.split(' ').map(n => n[0]).join('')}
+              </div>
+            )}
             <div className="overflow-hidden">
               <p className="text-[8px] font-black uppercase truncate">{user.name}</p>
               <p className="text-[8px] text-[#ff4d00] font-black uppercase tracking-tighter">{activeProfile?.type || 'No profile'} identity</p>
             </div>
           </div>
-          <div className={`p-2 text-[8px] font-black uppercase text-center tracking-widest ${
+          
+          <div className="p-2 bg-gray-50 border border-gray-200">
+            <p className="text-[7px] font-black uppercase text-gray-400 mb-1">Response Rate</p>
+            <p className={`text-sm font-black ${user.stats.responseRate >= 90 ? 'text-[#ff4d00]' : 'text-gray-600'}`}>
+              {user.stats.responseRate}%
+            </p>
+            <p className="text-[6px] text-gray-400 mt-1">Public reputation</p>
+          </div>
+          <div className={`p-3 text-center border-2 ${
             user.stats.reciprocityCredits === 0 
-              ? 'bg-red-50 text-red-400' 
+              ? 'bg-red-50 text-red-600 border-red-300' 
               : user.stats.reciprocityCredits < 3 
-              ? 'bg-yellow-50 text-yellow-600' 
-              : 'bg-gray-50 text-gray-400'
+              ? 'bg-yellow-50 text-yellow-700 border-yellow-300' 
+              : 'bg-gray-50 text-gray-600 border-gray-200'
           }`}>
-            {user.stats.reciprocityCredits} Credits Available
-            {user.stats.reciprocityCredits === 0 && ' — Respond to earn'}
+            <p className="text-[8px] font-black uppercase tracking-widest mb-1">Reciprocity Credits</p>
+            <p className="text-xl font-black mb-1">{user.stats.reciprocityCredits}</p>
+            <p className="text-[7px] font-bold opacity-80">
+              {user.stats.reciprocityCredits === 0 
+                ? 'Respond to earn credits' 
+                : 'Burn to reach out. Refill by responding.'}
+            </p>
           </div>
           <div className="flex flex-col gap-2">
             <button
@@ -468,13 +491,21 @@ const App: React.FC = () => {
           </p>
         </header>
 
+        {/* Key Differentiators Banner - Show on Board tab */}
+        {activeTab === 'BOARD' && (
+          <DifferentiatorsBanner />
+        )}
+
         <section className="min-h-[50vh]">
           {activeTab === 'BOARD' && (
             <div className="space-y-12">
               <div id="board-signals">
-                <div className="flex justify-between items-baseline mb-6">
-                  <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Live Signals</h4>
-                  <p className="text-[8px] font-bold text-gray-200">Refreshes every 24h</p>
+                <div className="flex justify-between items-baseline mb-4">
+                  <div>
+                    <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-1">Live Signals</h4>
+                    <p className="text-[8px] font-bold text-gray-500 italic">Actionable intents, not posts. No likes. No comments. Just routing.</p>
+                  </div>
+                  <p className="text-[8px] font-bold text-gray-200">Auto-expires</p>
                 </div>
                 {activeSignals.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -490,8 +521,11 @@ const App: React.FC = () => {
               </div>
 
               <div id="board-directory" className="pt-12 border-t border-gray-100">
-                <div className="flex justify-between items-center mb-8">
-                  <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Node Directory</h4>
+                <div className="flex justify-between items-center mb-6">
+                  <div>
+                    <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-1">Node Directory</h4>
+                    <p className="text-[8px] font-bold text-gray-500 italic">Everyone here opted in. Intent-first discovery, not resume-first.</p>
+                  </div>
                   <div className="w-40">
                     <input 
                       type="text" 
@@ -521,15 +555,23 @@ const App: React.FC = () => {
           )}
 
           {activeTab === 'NETWORK' && (
-            <NetworkView 
-              connections={filteredConnections} 
-              onUpdate={updateConnection}
-              filter={networkFilter}
-              onFilterChange={setNetworkFilter}
-              statusFilter={networkStatusFilter}
-              onStatusFilterChange={setNetworkStatusFilter}
-              onTerminate={handleTerminateConnection}
-            />
+            <div>
+              <div className="mb-6 p-4 bg-gray-50 border-l-4 border-[#ff4d00]">
+                <p className="text-[8px] font-black uppercase text-gray-400 mb-1">Private Network Ledger</p>
+                <p className="text-[9px] font-bold text-gray-600">
+                  These are your established connections. Track private notes and rankings. Response rate and reply time matter here—they&apos;re your reputation.
+                </p>
+              </div>
+              <NetworkView 
+                connections={filteredConnections} 
+                onUpdate={updateConnection}
+                filter={networkFilter}
+                onFilterChange={setNetworkFilter}
+                statusFilter={networkStatusFilter}
+                onStatusFilterChange={setNetworkStatusFilter}
+                onTerminate={handleTerminateConnection}
+              />
+            </div>
           )}
 
           {activeTab === 'PROFILE' && user && (
@@ -562,7 +604,10 @@ const App: React.FC = () => {
           )}
 
           {activeTab === 'RULES' && (
-            <GroundRules />
+            <div>
+              <KeyDifferentiators />
+              <GroundRules />
+            </div>
           )}
         </section>
 
@@ -621,10 +666,14 @@ const App: React.FC = () => {
 
               <div>
                 <label className="handwritten text-xl block mb-3 text-[#ff4d00]">Dispatch Short Intent:</label>
+                <div className="mb-2 p-2 bg-gray-50 border-l-2 border-[#ff4d00]">
+                  <p className="text-[8px] font-black uppercase text-gray-400 mb-1">Intent-First Rule:</p>
+                  <p className="text-[9px] font-bold text-gray-600">Start with why, not background. Be direct. 3 sentences max.</p>
+                </div>
                 <textarea 
                   value={introText}
                   onChange={(e) => setIntroText(e.target.value)}
-                  placeholder="3 sentences max. Direct value prop."
+                  placeholder="e.g., Looking for 15 min advice on X. Building Y. Can offer Z in return."
                   className="w-full text-xl font-bold leading-tight border-none p-0 focus:ring-0 italic h-32 resize-none placeholder-gray-100"
                   maxLength={300}
                 />
@@ -644,8 +693,13 @@ const App: React.FC = () => {
                   disabled={!introText.trim() || !canAfford}
                   className="btn-brutal flex-1 !bg-black !text-white disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {!canAfford ? 'Insufficient Credits' : `Dispatch Sync Signal (-1 Credits)`}
+                  {!canAfford ? 'Insufficient Credits — Respond to Earn' : `Dispatch Sync Signal (-1 Credit)`}
                 </button>
+                {!canAfford && (
+                  <p className="text-[8px] text-red-500 font-bold text-center mt-2">
+                    Reciprocity Credits required. Respond to messages to earn credits. This ensures everyone stays reachable.
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -700,6 +754,10 @@ const App: React.FC = () => {
 
               <div>
                 <label className="handwritten text-xl block mb-3 text-[#ff4d00]">Intent (1-2 lines max)</label>
+                <div className="mb-2 p-2 bg-gray-50 border-l-2 border-[#ff4d00]">
+                  <p className="text-[8px] font-black uppercase text-gray-400 mb-1">Signal Rules:</p>
+                  <p className="text-[9px] font-bold text-gray-600">Short, specific, time-bound, actionable. NOT a post. Expires in 48h.</p>
+                </div>
                 <textarea 
                   value={editingSignal?.content ?? activeSignal?.content ?? ''}
                   onChange={(e) => {
@@ -787,24 +845,24 @@ const App: React.FC = () => {
             },
             {
               id: 'signals',
-              title: 'Live Signals',
-              content: 'Signals are time-bound public intents. You can respond to others\' signals or create your own to broadcast what you\'re looking for or offering.',
+              title: 'Live Signals (Not Posts)',
+              content: 'Signals are time-bound, actionable intents—NOT posts. No likes, no comments, no feed. They expire in 48h to keep intent fresh. You respond with action: offer help, make an intro, or decline.',
               target: '#board-signals',
               position: 'bottom',
               action: () => setActiveTab('BOARD')
             },
             {
               id: 'directory',
-              title: 'Node Directory',
-              content: 'Browse other users in the network. Click "Sync" to send a connection request. You need reciprocity credits to send requests.',
+              title: 'Intent-First Discovery',
+              content: 'Everyone here opted in to be contacted. Discovery is intent-first, not resume-first. Response rates are public—this measures availability, not followers. You need reciprocity credits to send requests.',
               target: '#board-directory',
               position: 'top',
               action: () => setActiveTab('BOARD')
             },
             {
               id: 'profile',
-              title: 'Your Profiles',
-              content: 'Create multiple networking identities for different contexts. Each profile can have its own bio, goals, and availability.',
+              title: 'Multiple Context Profiles',
+              content: 'Unlike LinkedIn, you can have multiple profiles for different contexts: Professional, Builder, Learner, Anonymous, Local. Each operates independently. This is a key differentiator—profiles are contexts, not identities.',
               target: '#profile-view',
               position: 'left',
               action: () => setActiveTab('PROFILE')
@@ -822,15 +880,15 @@ const App: React.FC = () => {
             },
             {
               id: 'credits',
-              title: 'Reciprocity Credits',
-              content: 'You need credits to send connection requests. Earn credits by responding to messages and helping others. New users start with 5 credits.',
+              title: 'Reciprocity Credits System',
+              content: 'This is THE core mechanic. To send messages, you must respond to others. Ignoring messages drains your ability to be contacted. Response is the currency—not optional, but required. This solves ghosting and power imbalance.',
               target: '#nav-main',
               position: 'left'
             },
             {
               id: 'complete',
               title: 'You\'re Ready!',
-              content: 'You now know the basics of Tapped. Start by creating a signal or browsing the directory. Remember: be direct, be helpful, and respond quickly.',
+              content: 'Remember: Response is required, not optional. Your response rate is your reputation. Signals are actionable intents, not posts. Multiple profiles for different contexts. This is how networking should work.',
               position: 'center'
             }
           ]}
