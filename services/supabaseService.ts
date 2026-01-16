@@ -212,13 +212,15 @@ export const dbService = {
       return (data || []).map((c: any) => ({
         id: c.id,
         userId: c.user_id,
+        connectedUserId: c.connected_user_id,
         name: c.name,
-        tagline: c.tagline,
+        tagline: c.tagline || '',
         lastInteraction: new Date(c.last_interaction),
-        privateNotes: c.private_notes,
+        privateNotes: c.private_notes || '',
         status: c.status,
         timeCommitment: c.time_commitment,
-        introducedBy: c.introduced_by
+        introducedBy: c.introduced_by,
+        isInitiator: c.is_initiator || false
       }));
     } catch (error) {
       console.error('Error fetching connections:', error);
@@ -226,22 +228,100 @@ export const dbService = {
     }
   },
 
+  // Get incoming connection requests (pending requests sent TO this user)
+  async getIncomingRequests(userId: string): Promise<NetworkConnection[]> {
+    if (!supabase) return [];
+    
+    try {
+      const { data, error } = await supabase
+        .from('connections')
+        .select('*')
+        .eq('connected_user_id', userId)
+        .eq('status', 'PENDING')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      
+      return (data || []).map((c: any) => ({
+        id: c.id,
+        userId: c.user_id, // The person who sent the request
+        connectedUserId: c.connected_user_id, // This user (recipient)
+        name: c.name,
+        tagline: c.tagline || '',
+        lastInteraction: new Date(c.last_interaction),
+        privateNotes: c.private_notes || '',
+        status: c.status,
+        timeCommitment: c.time_commitment,
+        introducedBy: c.introduced_by,
+        isInitiator: false // Recipient is never the initiator
+      }));
+    } catch (error) {
+      console.error('Error fetching incoming requests:', error);
+      return [];
+    }
+  },
+
+  // Get connection status between two users
+  async getConnectionStatus(userId: string, otherUserId: string): Promise<'CONNECTED' | 'PENDING_SENT' | 'PENDING_RECEIVED' | 'NOT_CONNECTED' | null> {
+    if (!supabase) return null;
+    
+    try {
+      // Check if user sent a request
+      const { data: sent, error: sentError } = await supabase
+        .from('connections')
+        .select('status')
+        .eq('user_id', userId)
+        .eq('connected_user_id', otherUserId)
+        .single();
+      
+      if (sentError && sentError.code !== 'PGRST116') throw sentError; // PGRST116 = no rows
+      
+      if (sent) {
+        if (sent.status === 'ACTIVE') return 'CONNECTED';
+        if (sent.status === 'PENDING') return 'PENDING_SENT';
+      }
+      
+      // Check if other user sent a request
+      const { data: received, error: receivedError } = await supabase
+        .from('connections')
+        .select('status')
+        .eq('user_id', otherUserId)
+        .eq('connected_user_id', userId)
+        .single();
+      
+      if (receivedError && receivedError.code !== 'PGRST116') throw receivedError;
+      
+      if (received) {
+        if (received.status === 'ACTIVE') return 'CONNECTED';
+        if (received.status === 'PENDING') return 'PENDING_RECEIVED';
+      }
+      
+      return 'NOT_CONNECTED';
+    } catch (error) {
+      console.error('Error getting connection status:', error);
+      return null;
+    }
+  },
+
   async createConnection(userId: string, connection: NetworkConnection): Promise<NetworkConnection | null> {
     if (!supabase) return null;
     
     try {
+      // Create connection from sender's perspective
       const { data, error } = await supabase
         .from('connections')
         .insert([{
           id: connection.id,
           user_id: userId,
+          connected_user_id: connection.connectedUserId,
           name: connection.name,
           tagline: connection.tagline || null,
           last_interaction: connection.lastInteraction.toISOString(),
           private_notes: connection.privateNotes || null,
           status: connection.status,
           time_commitment: connection.timeCommitment || null,
-          introduced_by: connection.introducedBy || null
+          introduced_by: connection.introducedBy || null,
+          is_initiator: true
         }])
         .select()
         .single();
@@ -251,16 +331,44 @@ export const dbService = {
         throw error;
       }
       
+      // If status is PENDING, also create a record for the recipient (so they can see the request)
+      if (connection.status === 'PENDING') {
+        // Get sender's info for recipient's view
+        const sender = await this.getUserById(userId);
+        
+        if (sender) {
+          const recipientConnectionId = `conn_${connection.connectedUserId}_${userId}_${Date.now()}`;
+          
+          await supabase
+            .from('connections')
+            .insert([{
+              id: recipientConnectionId,
+              user_id: connection.connectedUserId,
+              connected_user_id: userId,
+              name: sender.name,
+              tagline: sender.tagline || sender.profiles[0]?.bio || null,
+              last_interaction: connection.lastInteraction.toISOString(),
+              private_notes: connection.privateNotes || null,
+              status: 'PENDING',
+              time_commitment: connection.timeCommitment || null,
+              introduced_by: connection.introducedBy || null,
+              is_initiator: false
+            }]);
+        }
+      }
+      
       return {
         id: data.id,
         userId: data.user_id,
+        connectedUserId: data.connected_user_id,
         name: data.name,
         tagline: data.tagline || '',
         lastInteraction: new Date(data.last_interaction),
         privateNotes: data.private_notes || '',
         status: data.status,
         timeCommitment: data.time_commitment,
-        introducedBy: data.introduced_by
+        introducedBy: data.introduced_by,
+        isInitiator: data.is_initiator || false
       };
     } catch (error) {
       console.error('Error creating connection:', error);
@@ -272,6 +380,16 @@ export const dbService = {
     if (!supabase) return null;
     
     try {
+      // First get the connection to find the other user
+      const { data: existingConn, error: fetchError } = await supabase
+        .from('connections')
+        .select('*')
+        .eq('id', connectionId)
+        .eq('user_id', userId)
+        .single();
+      
+      if (fetchError) throw fetchError;
+      
       const updateData: any = {};
       if (updates.name !== undefined) updateData.name = updates.name;
       if (updates.tagline !== undefined) updateData.tagline = updates.tagline || null;
@@ -281,6 +399,7 @@ export const dbService = {
       if (updates.timeCommitment !== undefined) updateData.time_commitment = updates.timeCommitment || null;
       if (updates.introducedBy !== undefined) updateData.introduced_by = updates.introducedBy || null;
       
+      // Update this user's connection
       const { data, error } = await supabase
         .from('connections')
         .update(updateData)
@@ -294,16 +413,65 @@ export const dbService = {
         throw error;
       }
       
+      // If accepting a connection, also update the other user's connection to ACTIVE
+      if (updates.status === 'ACTIVE' && existingConn.status === 'PENDING') {
+        // Find the reciprocal connection (the one from the other user's perspective)
+        const { data: reciprocalConn } = await supabase
+          .from('connections')
+          .select('id, user_id')
+          .eq('user_id', existingConn.connected_user_id)
+          .eq('connected_user_id', userId)
+          .maybeSingle();
+        
+        if (reciprocalConn) {
+          // Update recipient's connection to ACTIVE and fill in their info
+          const recipient = await this.getUserById(existingConn.connected_user_id);
+          await supabase
+            .from('connections')
+            .update({
+              status: 'ACTIVE',
+              name: recipient?.name || '',
+              tagline: recipient?.tagline || recipient?.profiles[0]?.bio || '',
+              last_interaction: new Date().toISOString()
+            })
+            .eq('id', reciprocalConn.id);
+        } else {
+          // Create reciprocal connection if it doesn't exist
+          const recipient = await this.getUserById(existingConn.connected_user_id);
+          const sender = await this.getUserById(userId);
+          
+          if (recipient && sender) {
+            await supabase
+              .from('connections')
+              .insert([{
+                id: `conn_${existingConn.connected_user_id}_${userId}_${Date.now()}`,
+                user_id: existingConn.connected_user_id,
+                connected_user_id: userId,
+                name: sender.name,
+                tagline: sender.tagline || sender.profiles[0]?.bio || '',
+                last_interaction: new Date().toISOString(),
+                private_notes: '',
+                status: 'ACTIVE',
+                time_commitment: null,
+                introduced_by: null,
+                is_initiator: false
+              }]);
+          }
+        }
+      }
+      
       return {
         id: data.id,
         userId: data.user_id,
+        connectedUserId: data.connected_user_id,
         name: data.name,
         tagline: data.tagline || '',
         lastInteraction: new Date(data.last_interaction),
         privateNotes: data.private_notes || '',
         status: data.status,
         timeCommitment: data.time_commitment,
-        introducedBy: data.introduced_by
+        introducedBy: data.introduced_by,
+        isInitiator: data.is_initiator || false
       };
     } catch (error) {
       console.error('Error updating connection:', error);

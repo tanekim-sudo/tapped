@@ -6,9 +6,20 @@ interface ProfileCardProps {
   onConnect: (user: User, profile: ContextProfile) => void;
   canAfford?: boolean;
   discoveryUsers?: User[]; // For showing who introduced them
+  connectionStatus?: 'CONNECTED' | 'PENDING_SENT' | 'PENDING_RECEIVED' | 'NOT_CONNECTED';
+  onAcceptRequest?: (userId: string) => void;
+  onDeclineRequest?: (userId: string) => void;
 }
 
-const ProfileCard: React.FC<ProfileCardProps> = ({ user, onConnect, canAfford = true, discoveryUsers = [] }) => {
+const ProfileCard: React.FC<ProfileCardProps> = ({ 
+  user, 
+  onConnect, 
+  canAfford = true, 
+  discoveryUsers = [],
+  connectionStatus = 'NOT_CONNECTED',
+  onAcceptRequest,
+  onDeclineRequest
+}) => {
   const primaryProfile = user.profiles[0];
   const initials = user.name.split(' ').map(n => n[0]).join('');
 
@@ -90,12 +101,49 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ user, onConnect, canAfford = 
             <p className="text-[8px] font-bold text-gray-500 italic">Vouched</p>
           </div>
         )}
-        <button 
-          onClick={() => onConnect(user, primaryProfile)}
-          className="btn-brutal w-full !text-xs !py-2"
-        >
-          Connect
-        </button>
+        {connectionStatus === 'CONNECTED' ? (
+          <div className="w-full">
+            <span className="text-[8px] font-black uppercase text-[#ff4d00] mb-2 block">Connected</span>
+            <button 
+              onClick={() => onConnect(user, primaryProfile)}
+              className="btn-brutal w-full !text-xs !py-2 !bg-gray-50"
+            >
+              Message
+            </button>
+          </div>
+        ) : connectionStatus === 'PENDING_SENT' ? (
+          <div className="w-full">
+            <span className="text-[8px] font-black uppercase text-gray-400 mb-2 block">Pending</span>
+            <button 
+              disabled
+              className="btn-brutal w-full !text-xs !py-2 opacity-50 cursor-not-allowed"
+            >
+              Request Sent
+            </button>
+          </div>
+        ) : connectionStatus === 'PENDING_RECEIVED' ? (
+          <div className="w-full space-y-2">
+            <button 
+              onClick={() => onAcceptRequest?.(user.id)}
+              className="btn-brutal w-full !text-xs !py-2 !bg-black !text-white"
+            >
+              Accept
+            </button>
+            <button 
+              onClick={() => onDeclineRequest?.(user.id)}
+              className="btn-brutal w-full !text-xs !py-2"
+            >
+              Decline
+            </button>
+          </div>
+        ) : (
+          <button 
+            onClick={() => onConnect(user, primaryProfile)}
+            className="btn-brutal w-full !text-xs !py-2"
+          >
+            Connect
+          </button>
+        )}
       </div>
     </div>
   );

@@ -23,9 +23,11 @@ export const dataService = {
     if (!stored) return [];
     
     const connections = JSON.parse(stored);
-    return connections.map((c: NetworkConnection) => ({
+    return connections.map((c: any) => ({
       ...c,
-      lastInteraction: new Date(c.lastInteraction)
+      connectedUserId: c.connectedUserId || c.userId, // Backward compatibility
+      lastInteraction: new Date(c.lastInteraction),
+      isInitiator: c.isInitiator !== undefined ? c.isInitiator : true
     }));
   },
 
@@ -47,9 +49,15 @@ export const dataService = {
     const existingIndex = connections.findIndex(c => c.id === connection.id);
     
     if (existingIndex >= 0) {
-      connections[existingIndex] = connection;
+      connections[existingIndex] = {
+        ...connection,
+        connectedUserId: connection.connectedUserId || connection.userId
+      };
     } else {
-      connections.push(connection);
+      connections.push({
+        ...connection,
+        connectedUserId: connection.connectedUserId || connection.userId
+      });
     }
     
     localStorage.setItem(`${CONNECTIONS_KEY}_${userId}`, JSON.stringify(connections));

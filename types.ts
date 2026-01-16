@@ -28,7 +28,8 @@ export interface ContextProfile {
 
 export interface NetworkConnection {
   id: string;
-  userId: string;
+  userId: string; // The user who owns this connection record
+  connectedUserId: string; // The other user in this connection
   name: string;
   tagline: string;
   lastInteraction: Date;
@@ -36,6 +37,7 @@ export interface NetworkConnection {
   status: 'ACTIVE' | 'PENDING' | 'CLOSED' | 'DECLINED';
   timeCommitment?: '10min' | '15min' | 'async' | 'custom';
   introducedBy?: string; // User ID of who introduced them
+  isInitiator: boolean; // true if this user sent the request
 }
 
 export interface User {

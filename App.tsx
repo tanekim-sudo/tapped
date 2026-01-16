@@ -13,10 +13,11 @@ import { getIntroSuggestion } from './services/claudeService';
 import { enhancedSearch, getRecommendations, getSearchSuggestions } from './services/enhancedSearchService';
 import { authService } from './services/authService';
 import { dataService } from './services/dataService';
+import { dbService } from './services/supabaseService';
 import { onboardingService } from './services/onboardingService';
 
 const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'SEARCH'>('SEARCH');
+  const [activeTab, setActiveTab] = useState<'SEARCH' | 'NOTES'>('SEARCH');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchFilter, setSearchFilter] = useState<'industry' | 'topic'>('industry');
   const [searchResults, setSearchResults] = useState<Array<{ user: User; relevanceScore: number; matchReasons: string[]; suggestedConnectionType?: string }>>([]);
@@ -55,13 +56,29 @@ const App: React.FC = () => {
             setActiveProfileId(currentUser.profiles[0].id);
           }
           
-          // Load data
-          try {
-            const userConnections = await dataService.getConnections(currentUser.id);
-            const discovery = await dataService.getDiscoveryUsers(currentUser.id);
+        // Load data
+        try {
+          const userConnections = await dataService.getConnections(currentUser.id);
+          const discovery = await dataService.getDiscoveryUsers(currentUser.id);
+          
+          setConnections(userConnections);
+          setDiscoveryUsers(discovery);
+          
+          // Load incoming connection requests
+          if (import.meta.env.VITE_SUPABASE_URL) {
+            const incoming = await dbService.getIncomingRequests(currentUser.id);
+            setIncomingRequests(incoming);
             
-            setConnections(userConnections);
-            setDiscoveryUsers(discovery);
+            // Load connection statuses for all discovery users
+            const statuses: Record<string, 'CONNECTED' | 'PENDING_SENT' | 'PENDING_RECEIVED' | 'NOT_CONNECTED'> = {};
+            for (const otherUser of discovery) {
+              const status = await dbService.getConnectionStatus(currentUser.id, otherUser.id);
+              if (status) {
+                statuses[otherUser.id] = status;
+              }
+            }
+            setConnectionStatuses(statuses);
+          }
 
             // Load recommendations (don't block if it fails)
             try {
@@ -199,6 +216,21 @@ const App: React.FC = () => {
               setConnections(userConnections);
               setDiscoveryUsers(discovery);
               
+              // Load incoming requests and connection statuses
+              if (import.meta.env.VITE_SUPABASE_URL) {
+                const incoming = await dbService.getIncomingRequests(signedInUser.id);
+                setIncomingRequests(incoming);
+                
+                const statuses: Record<string, 'CONNECTED' | 'PENDING_SENT' | 'PENDING_RECEIVED' | 'NOT_CONNECTED'> = {};
+                for (const otherUser of discovery) {
+                  const status = await dbService.getConnectionStatus(signedInUser.id, otherUser.id);
+                  if (status) {
+                    statuses[otherUser.id] = status;
+                  }
+                }
+                setConnectionStatuses(statuses);
+              }
+              
               // Load recommendations
               const recs = await getRecommendations(signedInUser.id, signedInUser);
               setRecommendations(recs);
@@ -231,11 +263,11 @@ const App: React.FC = () => {
     u.profiles[0]?.type.toLowerCase().includes(boardFilter.toLowerCase())
   );
   
-  // Filter connections
+  // Filter connections (only show ACTIVE connections, not pending/declined)
   const filteredConnections = connections.filter(c => {
     const matchesStatus = networkStatusFilter === 'All Syncs' || 
       (networkStatusFilter === 'Pending' && c.status === 'PENDING') ||
-      (networkStatusFilter === 'Archived' && c.status === 'CLOSED');
+      (networkStatusFilter === 'Archived' && (c.status === 'CLOSED' || c.status === 'DECLINED'));
     const matchesFilter = !networkFilter || 
       c.name.toLowerCase().includes(networkFilter.toLowerCase()) ||
       c.tagline.toLowerCase().includes(networkFilter.toLowerCase()) ||
@@ -257,7 +289,7 @@ const App: React.FC = () => {
       const suggestion = await getIntroSuggestion(
         activeProfile.bio,
         selectedRecipient.profile?.bio || '',
-        selectedRecipient.profile?.goals[0] || 'Sync'
+        'Networking'
       );
       setIntroText(suggestion || '');
     } catch (error) {
@@ -268,22 +300,43 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSendIntro = () => {
+  const handleSendIntro = async () => {
     if (!selectedRecipient || !introText.trim() || !user) return;
     
-    // Create connection if it doesn't exist
-    const existingConnection = connections.find(c => c.userId === selectedRecipient.user.id);
-    if (!existingConnection) {
+    // Check if connection already exists
+    const existingConnection = connections.find(c => c.connectedUserId === selectedRecipient.user.id);
+    const connectionStatus = connectionStatuses[selectedRecipient.user.id];
+    
+    // If already connected, just update notes
+    if (connectionStatus === 'CONNECTED' && existingConnection) {
+      const updated = {
+        ...existingConnection,
+        lastInteraction: new Date(),
+        privateNotes: existingConnection.privateNotes + `\n\nNew message: "${introText}"`
+      };
+      await updateConnection(existingConnection.id, updated);
+      await dataService.saveConnection(user.id, updated);
+      setShowIntroModal(false);
+      setSelectedRecipient(null);
+      setIntroText('');
+      setTimeCommitment('15min');
+      return;
+    }
+    
+    // Create new connection request
+    if (!existingConnection || connectionStatus === 'NOT_CONNECTED') {
       const newConnection: NetworkConnection = {
-        id: `conn_${Date.now()}`,
-        userId: selectedRecipient.user.id,
+        id: `conn_${user.id}_${selectedRecipient.user.id}_${Date.now()}`,
+        userId: user.id,
+        connectedUserId: selectedRecipient.user.id,
         name: selectedRecipient.user.name,
         tagline: selectedRecipient.user.tagline || selectedRecipient.user.profiles[0]?.bio || '',
         lastInteraction: new Date(),
         privateNotes: `Initial intro: "${introText}"`,
         status: 'PENDING',
         timeCommitment,
-        introducedBy: user.id // Track who introduced them
+        introducedBy: user.id,
+        isInitiator: true
       };
       
       // Update recipient's stats to track introduction
@@ -295,23 +348,18 @@ const App: React.FC = () => {
             introducedBy: user.id
           }
         };
-        authService.updateUser(selectedRecipient.user.id, updatedRecipient);
-        dataService.addDiscoveryUser(updatedRecipient);
+        await authService.updateUser(selectedRecipient.user.id, updatedRecipient);
+        await dataService.addDiscoveryUser(updatedRecipient);
       }
+      
       setConnections(prev => [...prev, newConnection]);
-      dataService.saveConnection(user.id, newConnection);
-    } else {
-      // Update existing connection
-      const updated = {
-        ...existingConnection,
-        lastInteraction: new Date(),
-        status: 'ACTIVE' as const,
-        timeCommitment,
-        introducedBy: existingConnection.introducedBy || user.id,
-        privateNotes: existingConnection.privateNotes + `\n\nNew intro: "${introText}"`
-      };
-      updateConnection(existingConnection.id, updated);
-      dataService.saveConnection(user.id, updated);
+      await dataService.saveConnection(user.id, newConnection);
+      
+      // Update connection status
+      setConnectionStatuses(prev => ({
+        ...prev,
+        [selectedRecipient.user.id]: 'PENDING_SENT'
+      }));
     }
     
     setShowIntroModal(false);
@@ -329,14 +377,39 @@ const App: React.FC = () => {
     setDecliningConnection(null);
   };
 
-  const updateConnection = (id: string, updates: Partial<NetworkConnection>) => {
+  const updateConnection = async (id: string, updates: Partial<NetworkConnection>) => {
     if (!user) return;
-    const updated = connections.map(c => c.id === id ? { ...c, ...updates } : c);
-    setConnections(updated);
-    const connection = updated.find(c => c.id === id);
-    if (connection) {
-      dataService.saveConnection(user.id, connection);
+    const connection = connections.find(c => c.id === id);
+    if (!connection) return;
+    
+    const updated = { ...connection, ...updates };
+    const updatedList = connections.map(c => c.id === id ? updated : c);
+    setConnections(updatedList);
+    
+    // If accepting, update status for both users
+    if (updates.status === 'ACTIVE') {
+      setConnectionStatuses(prev => ({
+        ...prev,
+        [connection.connectedUserId]: 'CONNECTED'
+      }));
+      
+      // Remove from incoming requests if it was there
+      setIncomingRequests(prev => prev.filter(r => r.id !== id));
+      
+      // Reload connections to get the updated reciprocal connection
+      const refreshed = await dataService.getConnections(user.id);
+      setConnections(refreshed);
     }
+    
+    if (updates.status === 'DECLINED') {
+      setConnectionStatuses(prev => ({
+        ...prev,
+        [connection.connectedUserId]: 'NOT_CONNECTED'
+      }));
+      setIncomingRequests(prev => prev.filter(r => r.id !== id));
+    }
+    
+    await dataService.saveConnection(user.id, updated);
   };
 
   const handleOnboardingComplete = (profile: ContextProfile) => {
@@ -409,18 +482,24 @@ const App: React.FC = () => {
         <div id="nav-tabs" className="flex lg:flex-col gap-4 lg:gap-6 flex-wrap lg:flex-grow">
           {[
             { id: 'SEARCH', label: 'Search' },
+            { id: 'NOTES', label: 'Notes', badge: incomingRequests.length > 0 ? incomingRequests.length : undefined },
           ].map((tab) => (
             <button
               key={tab.id}
               id={`nav-tab-${tab.id.toLowerCase()}`}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`text-left font-black tracking-widest uppercase text-[10px] transition-all py-2 ${
+              className={`text-left font-black tracking-widest uppercase text-[10px] transition-all py-2 relative ${
                 activeTab === tab.id 
                   ? 'text-[#ff4d00] border-b-2 border-[#ff4d00]' 
                   : 'text-gray-400 hover:text-black'
               }`}
             >
               {tab.label}
+              {tab.badge && tab.badge > 0 && (
+                <span className="absolute -top-1 -right-2 bg-[#ff4d00] text-white text-[8px] font-black rounded-full w-4 h-4 flex items-center justify-center">
+                  {tab.badge}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -486,16 +565,94 @@ const App: React.FC = () => {
         
         <header className="mb-8">
           <h2 className="text-3xl font-black uppercase tracking-tighter mb-3">
-            Search
+            {activeTab === 'SEARCH' && 'Search'}
+            {activeTab === 'NOTES' && 'Notes'}
           </h2>
 
           <p className="text-sm font-medium max-w-xl text-gray-500">
-            Find people by industry or topic.
+            {activeTab === 'SEARCH' && 'Find people by industry or topic.'}
+            {activeTab === 'NOTES' && 'Your connections and incoming requests.'}
           </p>
         </header>
 
 
         <section id="search-view" className="min-h-[50vh]">
+          {activeTab === 'NOTES' && user && (
+            <div className="space-y-8">
+              {/* Incoming Connection Requests */}
+              {incomingRequests.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-black uppercase">
+                      Connection Requests ({incomingRequests.length})
+                    </h3>
+                  </div>
+                  <div className="space-y-3">
+                    {incomingRequests.map(request => {
+                      const requestUser = discoveryUsers.find(u => u.id === request.userId) || {
+                        id: request.userId,
+                        name: request.name,
+                        profiles: [{
+                          id: '',
+                          type: 'Professional' as any,
+                          bio: request.tagline,
+                          industry: '',
+                          topics: [],
+                          availabilityRules: '',
+                          location: '',
+                          openTo: [],
+                          isActive: true
+                        }],
+                        stats: { conversationsCompleted: 0, peopleHelped: 0, followThroughRate: 100 },
+                        avatar: '',
+                        tagline: request.tagline
+                      };
+                      return (
+                        <ProfileCard
+                          key={request.id}
+                          user={requestUser}
+                          onConnect={() => {}}
+                          discoveryUsers={discoveryUsers}
+                          connectionStatus="PENDING_RECEIVED"
+                          onAcceptRequest={async () => {
+                            await updateConnection(request.id, { status: 'ACTIVE', lastInteraction: new Date() });
+                            setIncomingRequests(prev => prev.filter(r => r.id !== request.id));
+                            const refreshed = await dataService.getConnections(user.id);
+                            setConnections(refreshed);
+                            setConnectionStatuses(prev => ({ ...prev, [request.userId]: 'CONNECTED' }));
+                          }}
+                          onDeclineRequest={async () => {
+                            await updateConnection(request.id, { status: 'DECLINED' });
+                            setIncomingRequests(prev => prev.filter(r => r.id !== request.id));
+                            setConnectionStatuses(prev => ({ ...prev, [request.userId]: 'NOT_CONNECTED' }));
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Your Connections */}
+              <div>
+                <h3 className="text-lg font-black uppercase mb-4">Your Connections</h3>
+                <NetworkView
+                  connections={filteredConnections}
+                  onUpdate={updateConnection}
+                  filter={networkFilter}
+                  onFilterChange={setNetworkFilter}
+                  statusFilter={networkStatusFilter}
+                  onStatusFilterChange={setNetworkStatusFilter}
+                  onTerminate={handleTerminateConnection}
+                  onQuickDecline={(conn) => {
+                    setDecliningConnection(conn);
+                    setShowDeclineModal(true);
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
           {activeTab === 'SEARCH' && user && (
             <div>
               <div className="mb-6 space-y-4">
@@ -556,6 +713,25 @@ const App: React.FC = () => {
                           onConnect={(usr, prof) => handleConnectRequest({ user: usr, profile: prof })} 
                           canAfford={true}
                           discoveryUsers={discoveryUsers}
+                          connectionStatus={connectionStatuses[result.user.id] || 'NOT_CONNECTED'}
+                          onAcceptRequest={async (userId) => {
+                            const request = incomingRequests.find(r => r.userId === userId);
+                            if (request) {
+                              await updateConnection(request.id, { status: 'ACTIVE', lastInteraction: new Date() });
+                              setIncomingRequests(prev => prev.filter(r => r.id !== request.id));
+                              setConnectionStatuses(prev => ({ ...prev, [userId]: 'CONNECTED' }));
+                              const refreshed = await dataService.getConnections(user!.id);
+                              setConnections(refreshed);
+                            }
+                          }}
+                          onDeclineRequest={async (userId) => {
+                            const request = incomingRequests.find(r => r.userId === userId);
+                            if (request) {
+                              await updateConnection(request.id, { status: 'DECLINED' });
+                              setIncomingRequests(prev => prev.filter(r => r.id !== request.id));
+                              setConnectionStatuses(prev => ({ ...prev, [userId]: 'NOT_CONNECTED' }));
+                            }
+                          }}
                         />
                         {result.matchReasons.length > 0 && (
                           <div className="mt-2 p-2 bg-gray-50 border-l-2 border-[#ff4d00] text-xs">

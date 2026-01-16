@@ -34,10 +34,11 @@ CREATE TABLE IF NOT EXISTS profiles (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Connections table
+-- Connections table (bidirectional - both users have a record)
 CREATE TABLE IF NOT EXISTS connections (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  connected_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   tagline TEXT,
   last_interaction TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -45,8 +46,10 @@ CREATE TABLE IF NOT EXISTS connections (
   status TEXT NOT NULL DEFAULT 'PENDING',
   time_commitment TEXT,
   introduced_by TEXT,
+  is_initiator BOOLEAN DEFAULT false, -- true if this user sent the request
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(user_id, connected_user_id) -- Prevent duplicate connections
 );
 
 -- Indexes for performance
@@ -54,7 +57,9 @@ CREATE INDEX IF NOT EXISTS idx_profiles_user_id ON profiles(user_id);
 CREATE INDEX IF NOT EXISTS idx_profiles_industry ON profiles(industry);
 CREATE INDEX IF NOT EXISTS idx_profiles_topics ON profiles USING GIN(topics);
 CREATE INDEX IF NOT EXISTS idx_connections_user_id ON connections(user_id);
+CREATE INDEX IF NOT EXISTS idx_connections_connected_user_id ON connections(connected_user_id);
 CREATE INDEX IF NOT EXISTS idx_connections_status ON connections(status);
+CREATE INDEX IF NOT EXISTS idx_connections_user_status ON connections(user_id, status);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
 -- Enable Row Level Security (RLS)
