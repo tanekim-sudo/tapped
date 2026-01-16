@@ -8,6 +8,7 @@ interface OnboardingModalProps {
 
 const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, userName }) => {
   const [bio, setBio] = useState('');
+  const [industry, setIndustry] = useState('');
 
   const handleComplete = () => {
     if (!bio.trim()) return;
@@ -16,7 +17,7 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, userName 
       id: `profile_${Date.now()}`,
       type: ContextType.PROFESSIONAL,
       bio: bio.trim(),
-      industry: '',
+      industry: industry.trim(),
       topics: [],
       availabilityRules: '',
       location: '',
@@ -37,14 +38,33 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, userName 
             </p>
           </div>
           
-          <div className="mb-6">
-            <textarea
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              placeholder="e.g., Building a distributed database. Looking to connect with engineers."
-              className="w-full p-4 border-2 border-gray-200 focus:border-[#ff4d00] outline-none h-24 resize-none text-sm font-medium"
-              autoFocus
-            />
+          <div className="space-y-4 mb-6">
+            <div>
+              <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 block">
+                Bio
+              </label>
+              <textarea
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                placeholder="e.g., Building a distributed database. Looking to connect with engineers."
+                className="w-full p-4 border-2 border-gray-200 focus:border-[#ff4d00] outline-none h-24 resize-none text-sm font-medium"
+                autoFocus
+              />
+            </div>
+
+            <div>
+              <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 block">
+                Industry
+              </label>
+              <input
+                type="text"
+                value={industry}
+                onChange={(e) => setIndustry(e.target.value)}
+                placeholder="e.g., Tech, VC, Education"
+                className="w-full p-4 border-2 border-gray-200 focus:border-[#ff4d00] outline-none text-sm font-medium"
+                maxLength={50}
+              />
+            </div>
           </div>
 
           <button
