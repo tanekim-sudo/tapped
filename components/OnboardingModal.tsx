@@ -11,6 +11,9 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, userName 
   const [industry, setIndustry] = useState('');
   const [topics, setTopics] = useState<string[]>([]);
   const [topicInput, setTopicInput] = useState('');
+  const [location, setLocation] = useState('');
+  const [latitude, setLatitude] = useState<number | undefined>();
+  const [longitude, setLongitude] = useState<number | undefined>();
 
   const handleAddTopic = () => {
     if (topicInput.trim() && !topics.includes(topicInput.trim())) {
@@ -81,6 +84,24 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, userName 
                 maxLength={50}
                 autoFocus
               />
+            </div>
+
+            <div>
+              <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 block">
+                Location
+              </label>
+              <LocationPicker
+                value={location}
+                latitude={latitude}
+                longitude={longitude}
+                onChange={(loc, lat, lng) => {
+                  setLocation(loc);
+                  setLatitude(lat);
+                  setLongitude(lng);
+                }}
+                placeholder="e.g., San Francisco, CA or New York, NY"
+              />
+              <p className="text-[8px] text-gray-400 mt-1">Location helps us match you with nearby connections</p>
             </div>
 
             <div>

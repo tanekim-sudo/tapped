@@ -28,6 +28,8 @@ CREATE TABLE IF NOT EXISTS profiles (
   availability_rules TEXT,
   is_available BOOLEAN DEFAULT true, -- On/off toggle for availability
   location TEXT,
+  latitude DOUBLE PRECISION, -- Latitude coordinate for location-based matching
+  longitude DOUBLE PRECISION, -- Longitude coordinate for location-based matching
   open_to TEXT[] DEFAULT '{}',
   response_reliability INTEGER DEFAULT 100, -- 0-100, tracks response rate/reliability
   active_signal TEXT, -- Active Signal if any
@@ -80,6 +82,17 @@ BEGIN
   -- Check if constraint exists and remove it if needed
   IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name='connections_connected_user_id_fkey' AND table_name='connections') THEN
     ALTER TABLE connections ALTER COLUMN connected_user_id DROP NOT NULL;
+  END IF;
+END $$;
+
+-- Migration: Add latitude and longitude columns to profiles if they don't exist
+DO $$ 
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='profiles' AND column_name='latitude') THEN
+    ALTER TABLE profiles ADD COLUMN latitude DOUBLE PRECISION;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='profiles' AND column_name='longitude') THEN
+    ALTER TABLE profiles ADD COLUMN longitude DOUBLE PRECISION;
   END IF;
 END $$;
 

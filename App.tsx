@@ -210,11 +210,12 @@ const App: React.FC = () => {
 
       setIsSearching(true);
       try {
+        const activeProfile = user.profiles.find(p => p.id === activeProfileId) || user.profiles[0];
         const results = await enhancedSearch(searchQuery || '', user.id, {
           industry: searchFilters.industry,
           topic: searchFilters.topics?.join(' ') || searchQuery || undefined,
           openTo: searchFilters.openTo,
-        });
+        }, activeProfile); // Pass current user profile for location-based ranking
         setSearchResults(results);
       } catch (error) {
         console.error('Search error:', error);
@@ -1153,7 +1154,11 @@ const App: React.FC = () => {
                     ))
                   ) : (
                     <div className="brutal-card p-12 text-center bg-gray-50">
-                      <p className="text-sm font-bold text-gray-400 italic">No matches found. Try a different search term.</p>
+                      <p className="text-sm font-bold text-gray-400 italic">
+                        {searchResults.length === 0 
+                          ? 'Searching and ranking all available users...' 
+                          : 'No matches found. Try a different search term.'}
+                      </p>
                     </div>
                   )}
                 </div>

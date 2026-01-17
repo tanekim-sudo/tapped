@@ -23,7 +23,9 @@ export interface ContextProfile {
   industry: string; // e.g., "Tech", "VC", "Education"
   topics: string[]; // e.g., ["Startups", "AI", "Networking"]
   availabilityRules: string; // Meeting types (e.g., "Coffee chats, Video calls, In-person")
-  location: string; // Where you are located / where you can meet
+  location: string; // Where you are located / where you can meet (address string)
+  latitude?: number; // Latitude coordinate for location-based matching
+  longitude?: number; // Longitude coordinate for location-based matching
   openTo: string[];
   isActive: boolean;
   photo?: string; // URL or base64 data URL for profile photo

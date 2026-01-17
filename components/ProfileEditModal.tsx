@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { ContextProfile, ContextType } from '../types';
+import LocationPicker from './LocationPicker';
 
 interface ProfileEditModalProps {
   profile: ContextProfile;
@@ -79,6 +80,8 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ profile, onSave, on
       topics,
       availabilityRules: meetingTypes.trim(),
       location: location.trim(),
+      latitude,
+      longitude,
       openTo,
       responseReliability,
       activeSignal: activeSignal.trim() || undefined,
@@ -353,14 +356,18 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ profile, onSave, on
             <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 block">
               Location
             </label>
-            <input
-              type="text"
+            <LocationPicker
               value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              placeholder="e.g., Stanford, CA or Remote"
-              className="w-full p-3 border border-gray-200 focus:border-[#ff4d00] outline-none"
-              maxLength={100}
+              latitude={latitude}
+              longitude={longitude}
+              onChange={(loc, lat, lng) => {
+                setLocation(loc);
+                setLatitude(lat);
+                setLongitude(lng);
+              }}
+              placeholder="e.g., San Francisco, CA or New York, NY"
             />
+            <p className="text-[8px] text-gray-400 mt-1">Location helps us match you with nearby connections</p>
           </div>
 
           {/* Open To */}

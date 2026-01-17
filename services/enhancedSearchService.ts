@@ -99,9 +99,10 @@ export const enhancedSearch = async (
 const basicSearch = async (
   query: string,
   currentUserId: string,
-  filters?: SearchFilters
+  filters?: SearchFilters,
+  allUsersOverride?: any[] // Allow passing users directly
 ): Promise<SearchResult[]> => {
-  const allUsers = await dbService.getDiscoveryUsers(currentUserId);
+  const allUsers = allUsersOverride || await dbService.getDiscoveryUsers(currentUserId);
   const queryLower = query.toLowerCase();
   
   const results: SearchResult[] = allUsers

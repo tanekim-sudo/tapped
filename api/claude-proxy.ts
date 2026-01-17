@@ -59,27 +59,36 @@ Keep it under 180 characters. Output only the message text.`
     }
 
     if (type === 'search') {
-      // Enhanced search
-      const { query, usersData, filters } = params;
+      // Enhanced search with location-based ranking
+      const { query, usersData, filters, currentUserLocation } = params;
       const message = await anthropic.messages.create({
         model: 'claude-3-5-sonnet-20241022',
         max_tokens: 4000,
         temperature: 0.3,
         messages: [{
           role: 'user',
-          content: `You are a networking platform search engine. Analyze this search query and match it to the most relevant users.
+          content: `You are a networking platform search engine. Analyze this search query and match it to the most relevant users, considering location proximity when available.
 
 Search Query: "${query}"
 ${filters ? `Filters: ${JSON.stringify(filters)}` : ''}
+${currentUserLocation ? `Current User Location: ${currentUserLocation.location || 'N/A'} (${currentUserLocation.latitude || 'N/A'}, ${currentUserLocation.longitude || 'N/A'})` : ''}
 
 Available Users:
 ${JSON.stringify(usersData, null, 2)}
 
 Your task:
-1. Understand the search intent (industry, topic, role, interest, etc.)
-2. Rank users by relevance (0-100 score)
-3. Explain why each match is relevant
-4. Suggest the best connection type (e.g., "Mentorship", "Collaboration", "Advice", "Introduction")
+1. Understand the search intent (industry, topic, role, interest, location proximity, etc.)
+2. Rank ALL users by relevance (0-100 score) - never return empty results
+3. Consider location proximity if coordinates are available (closer users get higher scores)
+4. Explain why each match is relevant
+5. Suggest the best connection type (e.g., "Mentorship", "Collaboration", "Advice", "Introduction", "Local Meetup")
+
+Ranking factors:
+- Query match (industry, topics, active signal)
+- Location proximity (if coordinates available, prioritize nearby users)
+- Profile alignment with current user's interests
+- User quality metrics (followThroughRate, peopleHelped)
+- Mutual value potential
 
 Return a JSON array of matches with this structure:
 [
@@ -91,7 +100,7 @@ Return a JSON array of matches with this structure:
   }
 ]
 
-Only include users with relevanceScore >= 30. Sort by relevanceScore descending.`
+IMPORTANT: Rank ALL users, even if query is empty or vague. Minimum score should be 20. Sort by relevanceScore descending.`
         }]
       });
 
