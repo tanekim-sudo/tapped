@@ -227,8 +227,36 @@ const App: React.FC = () => {
   // ALWAYS shows ranked results - never empty if users exist
   useEffect(() => {
     const performSearch = async () => {
-      if (!user || !user.profiles || user.profiles.length === 0) {
+      if (!user) {
         setSearchResults([]);
+        setIsSearching(false);
+        return;
+      }
+      
+      // Allow search even if current user has no profiles (they can still see others)
+      if (!user.profiles || user.profiles.length === 0) {
+        console.warn('Current user has no profiles, but still attempting to show discovery users');
+        // Still try to show discovery users even without a profile
+        try {
+          const allUsers = await dbService.getDiscoveryUsers(user.id);
+          console.log(`Found ${allUsers.length} discovery users (current user has no profile)`);
+          // Show users even without ranking
+          setSearchResults(allUsers.map(u => ({
+            user: u,
+            relevanceScore: 50,
+            matchReasons: ['Available user'],
+            totalScore: 0.5,
+            locationScore: 0.5,
+            relevanceScoreDetailed: 0.5,
+            availabilityScore: 1.0,
+            glowTier: 'C' as const
+          })));
+        } catch (err) {
+          console.error('Error loading users without profile:', err);
+          setSearchResults([]);
+        } finally {
+          setIsSearching(false);
+        }
         return;
       }
 
@@ -244,6 +272,12 @@ const App: React.FC = () => {
         
         // Always use ranking algorithm - even with no query, rank ALL users
         // The algorithm will always return results if users exist
+        console.log('Performing search with:', { 
+          query: searchQuery, 
+          userId: user.id, 
+          profileId: activeProfile.id,
+          filters: searchFilters 
+        });
         const results = await enhancedSearch(
           searchQuery || '', 
           user.id, 
@@ -254,6 +288,16 @@ const App: React.FC = () => {
           }, 
           activeProfile // Required for ranking algorithm
         );
+        
+        console.log(`Search returned ${results.length} results`);
+        if (results.length === 0) {
+          console.warn('WARNING: Search returned 0 results! Checking discovery users...');
+          const allUsers = await dbService.getDiscoveryUsers(user.id);
+          console.log(`Discovery users count: ${allUsers.length}`);
+          allUsers.forEach(u => {
+            console.log(`  - ${u.name} (${u.id}): ${u.profiles?.length || 0} profiles`);
+          });
+        }
         
         // Always return results - never empty if users exist
         setSearchResults(results);

@@ -285,10 +285,16 @@ export const rankSearchResults = (
   const searcherLon = searcherProfile.longitude;
 
   // Calculate scores for all candidates
+  console.log(`Ranking ${allUsers.length} users with searcher profile:`, searcherProfile.id);
   const ranked: RankedSearchResult[] = allUsers
     .map(candidate => {
-      const candidateProfile = candidate.profiles[0];
-      if (!candidateProfile) return null;
+      const candidateProfile = candidate.profiles?.[0];
+      if (!candidateProfile) {
+        console.warn(`User ${candidate.id} (${candidate.name}) has no profiles, skipping`);
+        return null;
+      }
+      
+      console.log(`Ranking user ${candidate.id} (${candidate.name}) with profile:`, candidateProfile.id);
 
       // Location Score (48% weight)
       const locationScore = calculateLocationScore(
