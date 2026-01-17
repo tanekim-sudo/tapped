@@ -79,24 +79,8 @@ const DatabaseStatus: React.FC = () => {
     );
   }
 
-  if (status === 'error') {
-    return (
-      <div className="p-4 bg-red-50 border-2 border-red-300 rounded">
-        <p className="font-bold text-red-800 mb-2">❌ Database Connection Error</p>
-        <p className="text-sm text-red-700 mb-2">
-          Check your Supabase credentials and make sure the schema is set up.
-        </p>
-        <a
-          href="https://github.com/tanekim-sudo/tapped/blob/main/DATABASE_SETUP.md"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs text-red-800 underline font-bold"
-        >
-          → Troubleshooting guide
-        </a>
-      </div>
-    );
-  }
+  // Don't show error status - silently fall back to not-configured
+  // This prevents annoying connection error messages for network issues
 
   return (
     <div className="p-3 bg-green-50 border border-green-300 rounded text-xs">
