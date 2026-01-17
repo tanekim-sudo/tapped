@@ -40,6 +40,7 @@ export interface NetworkConnection {
   timeCommitment?: '10min' | '15min' | 'async' | 'custom';
   introducedBy?: string; // User ID of who introduced them
   isInitiator: boolean; // true if this user sent the request
+  profileId?: string; // Which profile was used to make this connection
 }
 
 export interface NetworkVaultContact {

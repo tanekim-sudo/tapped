@@ -28,9 +28,9 @@ export const authService = {
   // Sign up
   signUp: async (email: string, password: string, name: string): Promise<User> => {
     if (useDatabase()) {
-      // Check if user exists
-      const allUsers = await dbService.getUsers();
-      if (allUsers.some(u => (u as any).email === email)) {
+      // Check if user exists (case-insensitive)
+      const existingUser = await dbService.getUserByEmail(email.toLowerCase().trim());
+      if (existingUser) {
         throw new Error('User already exists');
       }
 
@@ -50,7 +50,7 @@ export const authService = {
       // Add email and password to user object for database
       const userWithAuth = {
         ...newUser,
-        email,
+        email: email.toLowerCase().trim(), // Normalize email
         password_hash: hashPassword(password)
       } as any;
 
@@ -95,14 +95,21 @@ export const authService = {
   // Sign in
   signIn: async (email: string, password: string): Promise<User> => {
     if (useDatabase()) {
-      const allUsers = await dbService.getUsers();
-      const userData = allUsers.find((u: any) => u.email === email);
+      // Query directly for the user by email (case-insensitive)
+      const userData = await dbService.getUserByEmail(email.toLowerCase().trim());
       
-      if (!userData || (userData as any).password_hash !== hashPassword(password)) {
+      if (!userData) {
+        throw new Error('Invalid email or password');
+      }
+      
+      // Get password hash from database
+      const passwordHash = await dbService.getUserPasswordHash(userData.id);
+      
+      if (!passwordHash || passwordHash !== hashPassword(password)) {
         throw new Error('Invalid email or password');
       }
 
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ email, userId: userData.id }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ email: email.toLowerCase().trim(), userId: userData.id }));
       return userData;
     }
 

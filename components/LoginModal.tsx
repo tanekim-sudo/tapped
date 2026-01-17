@@ -25,12 +25,14 @@ const LoginModal: React.FC<LoginModalProps> = ({ onSignIn, onSignUp, onClose }) 
       } else {
         await onSignIn(email, password);
       }
-      onClose();
+      // Don't call onClose here - let the parent handle it after setting user
+      // This prevents the modal from closing before the async operations complete
     } catch (err: any) {
       setError(err.message || 'Authentication failed');
-    } finally {
-      setLoading(false);
+      setLoading(false); // Reset loading on error so user can try again
     }
+    // Note: We don't set loading to false on success because onClose() will unmount the component
+    // But if there's an error, we need to reset it so the user can retry
   };
 
   return (
@@ -119,8 +121,10 @@ const LoginModal: React.FC<LoginModalProps> = ({ onSignIn, onSignUp, onClose }) 
             onClick={() => {
               setIsSignUp(!isSignUp);
               setError('');
+              setLoading(false); // Reset loading state when switching modes
             }}
-            className="text-[9px] font-bold text-[#ff4d00] uppercase hover:underline"
+            disabled={loading}
+            className="text-[9px] font-bold text-[#ff4d00] uppercase hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSignUp ? 'Already have an account? Sign in' : 'Need an account? Sign up'}
           </button>

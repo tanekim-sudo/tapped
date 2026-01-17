@@ -68,8 +68,11 @@ export const dbService = {
         industry: p.industry || '',
         topics: p.topics || [],
         availabilityRules: p.availability_rules || '',
+        isAvailable: p.is_available !== undefined ? p.is_available : true,
         location: p.location || '',
         openTo: p.open_to || [],
+        responseReliability: p.response_reliability !== undefined ? p.response_reliability : 100,
+        activeSignal: p.active_signal || undefined,
         photo: p.photo,
         isActive: p.is_active !== undefined ? p.is_active : true
       }));
@@ -85,6 +88,80 @@ export const dbService = {
       };
     } catch (error) {
       console.error('Error fetching user:', error);
+      return null;
+    }
+  },
+
+  async getUserByEmail(email: string): Promise<User | null> {
+    if (!supabase) return null;
+    
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*, profiles(*)')
+        .ilike('email', email) // Case-insensitive email match
+        .maybeSingle();
+      
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return null;
+        }
+        throw error;
+      }
+      if (!data) return null;
+      
+      // Map profiles from database format to app format
+      const mappedProfiles = (data.profiles || []).map((p: any) => ({
+        id: p.id,
+        type: p.type,
+        bio: p.bio,
+        industry: p.industry || '',
+        topics: p.topics || [],
+        availabilityRules: p.availability_rules || '',
+        isAvailable: p.is_available !== undefined ? p.is_available : true,
+        location: p.location || '',
+        openTo: p.open_to || [],
+        responseReliability: p.response_reliability !== undefined ? p.response_reliability : 100,
+        activeSignal: p.active_signal || undefined,
+        photo: p.photo,
+        isActive: p.is_active !== undefined ? p.is_active : true
+      }));
+      
+      return {
+        ...data,
+        profiles: mappedProfiles,
+        stats: data.stats || {
+          conversationsCompleted: 0,
+          peopleHelped: 0,
+          followThroughRate: 100
+        }
+      };
+    } catch (error) {
+      console.error('Error fetching user by email:', error);
+      return null;
+    }
+  },
+
+  async getUserPasswordHash(userId: string): Promise<string | null> {
+    if (!supabase) return null;
+    
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('password_hash')
+        .eq('id', userId)
+        .maybeSingle();
+      
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return null;
+        }
+        throw error;
+      }
+      
+      return data?.password_hash || null;
+    } catch (error) {
+      console.error('Error fetching password hash:', error);
       return null;
     }
   },
@@ -228,7 +305,8 @@ export const dbService = {
         status: c.status || 'PENDING',
         timeCommitment: c.time_commitment,
         introducedBy: c.introduced_by,
-        isInitiator: c.is_initiator !== undefined ? c.is_initiator : true
+        isInitiator: c.is_initiator !== undefined ? c.is_initiator : true,
+        profileId: c.profile_id || undefined // Which profile was used
       }));
     } catch (error) {
       console.error('Error fetching connections:', error);
@@ -241,7 +319,20 @@ export const dbService = {
     if (!supabase) return [];
     
     try {
-      // Check if connected_user_id column exists (for backward compatibility)
+      // First check if connected_user_id column exists by trying a simple query
+      const { data: testData, error: testError } = await supabase
+        .from('connections')
+        .select('connected_user_id')
+        .limit(1);
+      
+      const hasConnectedUserIdColumn = !testError || testError.code !== '42703';
+      
+      if (!hasConnectedUserIdColumn) {
+        console.warn('connected_user_id column not found, using old schema');
+        return [];
+      }
+      
+      // Query with connected_user_id
       const { data, error } = await supabase
         .from('connections')
         .select('*')
@@ -269,7 +360,8 @@ export const dbService = {
         status: c.status,
         timeCommitment: c.time_commitment,
         introducedBy: c.introduced_by,
-        isInitiator: false // Recipient is never the initiator
+        isInitiator: false, // Recipient is never the initiator
+        profileId: c.profile_id || undefined // Which profile was used
       }));
     } catch (error) {
       console.error('Error fetching incoming requests:', error);
@@ -282,6 +374,29 @@ export const dbService = {
     if (!supabase) return 'NOT_CONNECTED';
     
     try {
+      // First check if connected_user_id column exists
+      const { error: testError } = await supabase
+        .from('connections')
+        .select('connected_user_id')
+        .limit(1);
+      
+      const hasConnectedUserIdColumn = !testError || testError.code !== '42703';
+      
+      if (!hasConnectedUserIdColumn) {
+        // Old schema - use user_id only
+        const { data: sent } = await supabase
+          .from('connections')
+          .select('status')
+          .eq('user_id', userId)
+          .maybeSingle();
+        
+        if (sent) {
+          if (sent.status === 'ACTIVE') return 'CONNECTED';
+          if (sent.status === 'PENDING') return 'PENDING_SENT';
+        }
+        return 'NOT_CONNECTED';
+      }
+      
       // Check if user sent a request
       const { data: sent, error: sentError } = await supabase
         .from('connections')
@@ -291,6 +406,10 @@ export const dbService = {
         .maybeSingle();
       
       if (sentError && sentError.code !== 'PGRST116') {
+        // If column error, fallback to old schema
+        if (sentError.code === '42703') {
+          return 'NOT_CONNECTED';
+        }
         console.warn('Error checking sent connection:', sentError);
         return 'NOT_CONNECTED';
       }
@@ -345,7 +464,10 @@ export const dbService = {
       // Only add new fields if they exist in schema
       if (connection.connectedUserId) {
         connectionData.connected_user_id = connection.connectedUserId;
-        connectionData.is_initiator = true;
+        connectionData.is_initiator = connection.isInitiator !== undefined ? connection.isInitiator : true;
+      }
+      if (connection.profileId) {
+        connectionData.profile_id = connection.profileId;
       }
       
       const { data, error } = await supabase
@@ -380,18 +502,19 @@ export const dbService = {
           }
           
           return {
-            id: oldData.id,
-            userId: oldData.user_id,
-            connectedUserId: connection.connectedUserId || oldData.user_id,
-            name: oldData.name || '',
-            tagline: oldData.tagline || '',
-            lastInteraction: new Date(oldData.last_interaction),
-            privateNotes: oldData.private_notes || '',
-            status: oldData.status,
-            timeCommitment: oldData.time_commitment,
-            introducedBy: oldData.introduced_by,
-            isInitiator: true
-          };
+        id: oldData.id,
+        userId: oldData.user_id,
+        connectedUserId: connection.connectedUserId || oldData.user_id,
+        name: oldData.name || '',
+        tagline: oldData.tagline || '',
+        lastInteraction: new Date(oldData.last_interaction),
+        privateNotes: oldData.private_notes || '',
+        status: oldData.status,
+        timeCommitment: oldData.time_commitment,
+        introducedBy: oldData.introduced_by,
+        isInitiator: true,
+        profileId: connection.profileId || undefined
+      };
         }
         console.error('Error creating connection:', error);
         throw error;
@@ -419,7 +542,8 @@ export const dbService = {
                 status: 'PENDING',
                 time_commitment: connection.timeCommitment || null,
                 introduced_by: connection.introducedBy || null,
-                is_initiator: false
+                is_initiator: false,
+                profile_id: connection.profileId || null
               }]);
           }
         } catch (err) {
@@ -469,6 +593,7 @@ export const dbService = {
       if (updates.status) updateData.status = updates.status;
       if (updates.timeCommitment !== undefined) updateData.time_commitment = updates.timeCommitment || null;
       if (updates.introducedBy !== undefined) updateData.introduced_by = updates.introducedBy || null;
+      if (updates.profileId !== undefined) updateData.profile_id = updates.profileId || null;
       
       // Update this user's connection
       const { data, error } = await supabase
@@ -526,6 +651,7 @@ export const dbService = {
                     last_interaction: new Date().toISOString(),
                     private_notes: '',
                     status: 'ACTIVE',
+                    profile_id: existingConn.profile_id || null,
                     time_commitment: null,
                     introduced_by: null,
                     is_initiator: false
@@ -542,7 +668,7 @@ export const dbService = {
       return {
         id: data.id,
         userId: data.user_id,
-        connectedUserId: data.connected_user_id,
+        connectedUserId: data.connected_user_id || data.user_id,
         name: data.name,
         tagline: data.tagline || '',
         lastInteraction: new Date(data.last_interaction),
@@ -550,7 +676,8 @@ export const dbService = {
         status: data.status,
         timeCommitment: data.time_commitment,
         introducedBy: data.introduced_by,
-        isInitiator: data.is_initiator || false
+        isInitiator: data.is_initiator || false,
+        profileId: data.profile_id || undefined
       };
     } catch (error) {
       console.error('Error updating connection:', error);

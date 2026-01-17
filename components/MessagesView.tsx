@@ -42,8 +42,16 @@ const MessagesView: React.FC<MessagesViewProps> = ({
     ? activeChats 
     : activeChats.filter(c => {
         // Filter by which profile was used to create the connection
-        // This is stored in the connection notes or metadata
-        return true; // For now, show all - can be enhanced with profile metadata
+        // Check if connection notes mention the profile or use profileId if available
+        if (c.profileId) {
+          return c.profileId === profileFilter;
+        }
+        // Fallback: check notes for profile type mention
+        const profile = currentUser?.profiles.find(p => p.id === profileFilter);
+        if (profile && c.privateNotes?.includes(profile.type)) {
+          return true;
+        }
+        return false;
       });
 
   // Parse messages from privateNotes
@@ -206,7 +214,17 @@ const MessagesView: React.FC<MessagesViewProps> = ({
                         </div>
                         <div className="flex-grow min-w-0">
                           <div className="flex items-center justify-between mb-1">
-                            <h4 className="font-bold text-xs uppercase truncate">{chat.name}</h4>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-bold text-xs uppercase truncate">{chat.name}</h4>
+                              {chat.profileId && currentUser && (() => {
+                                const profile = currentUser.profiles.find(p => p.id === chat.profileId);
+                                return profile ? (
+                                  <span className="text-[7px] font-black uppercase text-[#ff4d00] bg-[#ff4d00]/10 px-1.5 py-0.5">
+                                    {profile.type}
+                                  </span>
+                                ) : null;
+                              })()}
+                            </div>
                             <span className="text-[8px] text-gray-400">
                               {chat.lastInteraction.toLocaleDateString()}
                             </span>
@@ -252,6 +270,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({
             connection={selectedChat}
             currentUserId={currentUserId}
             discoveryUsers={discoveryUsers}
+            currentUser={currentUser}
             onClose={() => onSelectChat(null as any)}
             onSendMessage={onSendMessage}
           />
@@ -286,7 +305,8 @@ const ChatView: React.FC<ChatViewProps> = ({
   currentUserId,
   discoveryUsers,
   onClose,
-  onSendMessage
+  onSendMessage,
+  currentUser
 }) => {
   const [messageText, setMessageText] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -363,6 +383,12 @@ const ChatView: React.FC<ChatViewProps> = ({
           <div>
             <h3 className="font-bold text-sm uppercase">{connection.name}</h3>
             <p className="text-[9px] text-gray-500">{connection.tagline || chatUser?.profiles[0]?.activeSignal || chatUser?.profiles[0]?.industry || ''}</p>
+            {connection.profileId && currentUser && (() => {
+              const profile = currentUser.profiles.find(p => p.id === connection.profileId);
+              return profile ? (
+                <p className="text-[7px] font-black uppercase text-[#ff4d00] mt-1">Connected as {profile.type}</p>
+              ) : null;
+            })()}
           </div>
         </div>
         {connection.status === 'PENDING' && (

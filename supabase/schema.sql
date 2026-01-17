@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS profiles (
 CREATE TABLE IF NOT EXISTS connections (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  connected_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  connected_user_id TEXT REFERENCES users(id) ON DELETE CASCADE, -- Made nullable for backward compatibility
   name TEXT NOT NULL,
   tagline TEXT,
   last_interaction TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -50,10 +50,38 @@ CREATE TABLE IF NOT EXISTS connections (
   time_commitment TEXT,
   introduced_by TEXT,
   is_initiator BOOLEAN DEFAULT false, -- true if this user sent the request
+  profile_id TEXT REFERENCES profiles(id) ON DELETE SET NULL, -- Which profile was used to make this connection
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(user_id, connected_user_id) -- Prevent duplicate connections
+  UNIQUE(user_id, connected_user_id) -- Prevent duplicate connections (only if both are set)
 );
+
+-- Migration: Add connected_user_id column if it doesn't exist
+DO $$ 
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='connections' AND column_name='connected_user_id') THEN
+    ALTER TABLE connections ADD COLUMN connected_user_id TEXT REFERENCES users(id) ON DELETE CASCADE;
+    -- Backfill: set connected_user_id = user_id for existing records (old schema)
+    UPDATE connections SET connected_user_id = user_id WHERE connected_user_id IS NULL;
+  END IF;
+END $$;
+
+-- Migration: Add profile_id column if it doesn't exist
+DO $$ 
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='connections' AND column_name='profile_id') THEN
+    ALTER TABLE connections ADD COLUMN profile_id TEXT REFERENCES profiles(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+
+-- Migration: Make connected_user_id nullable (for backward compatibility)
+DO $$ 
+BEGIN
+  -- Check if constraint exists and remove it if needed
+  IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name='connections_connected_user_id_fkey' AND table_name='connections') THEN
+    ALTER TABLE connections ALTER COLUMN connected_user_id DROP NOT NULL;
+  END IF;
+END $$;
 
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_profiles_user_id ON profiles(user_id);

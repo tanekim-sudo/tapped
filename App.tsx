@@ -263,58 +263,60 @@ const App: React.FC = () => {
                   setActiveProfileId(signedInUser.profiles[0].id);
                 }
                 
-                // Close modal first
+                // Close modal immediately for better UX
                 setShowLoginModal(false);
                 
-                // Load data asynchronously (non-blocking)
-                try {
-                  const [userConnections, discovery] = await Promise.all([
-                    dataService.getConnections(signedInUser.id).catch(() => []),
-                    dataService.getDiscoveryUsers(signedInUser.id).catch(() => [])
-                  ]);
-                  
-                  setConnections(userConnections);
-                  setDiscoveryUsers(discovery);
-                  
-                  // Load incoming requests and connection statuses (non-blocking)
-                  if (import.meta.env.VITE_SUPABASE_URL) {
-                    try {
-                      const incoming = await dbService.getIncomingRequests(signedInUser.id);
-                      setIncomingRequests(incoming);
-                      
-                      // Load connection statuses for first 20 users only (to avoid blocking)
-                      const statuses: Record<string, 'CONNECTED' | 'PENDING_SENT' | 'PENDING_RECEIVED' | 'NOT_CONNECTED'> = {};
-                      const usersToCheck = discovery.slice(0, 20);
-                      for (const otherUser of usersToCheck) {
-                        try {
-                          const status = await dbService.getConnectionStatus(signedInUser.id, otherUser.id);
-                          if (status) {
-                            statuses[otherUser.id] = status;
-                          }
-                        } catch (err) {
-                          console.warn('Failed to get connection status:', err);
-                        }
-                      }
-                      setConnectionStatuses(statuses);
-                    } catch (err) {
-                      console.warn('Failed to load connection data:', err);
-                      setIncomingRequests([]);
-                      setConnectionStatuses({});
-                    }
-                  }
-                  
-                  // Load recommendations (non-blocking)
+                // Load data asynchronously (non-blocking) - don't await, let it happen in background
+                (async () => {
                   try {
-                    const recs = await getRecommendations(signedInUser.id, signedInUser);
-                    setRecommendations(recs);
+                    const [userConnections, discovery] = await Promise.all([
+                      dataService.getConnections(signedInUser.id).catch(() => []),
+                      dataService.getDiscoveryUsers(signedInUser.id).catch(() => [])
+                    ]);
+                    
+                    setConnections(userConnections);
+                    setDiscoveryUsers(discovery);
+                    
+                    // Load incoming requests and connection statuses (non-blocking)
+                    if (import.meta.env.VITE_SUPABASE_URL) {
+                      try {
+                        const incoming = await dbService.getIncomingRequests(signedInUser.id);
+                        setIncomingRequests(incoming);
+                        
+                        // Load connection statuses for first 20 users only (to avoid blocking)
+                        const statuses: Record<string, 'CONNECTED' | 'PENDING_SENT' | 'PENDING_RECEIVED' | 'NOT_CONNECTED'> = {};
+                        const usersToCheck = discovery.slice(0, 20);
+                        for (const otherUser of usersToCheck) {
+                          try {
+                            const status = await dbService.getConnectionStatus(signedInUser.id, otherUser.id);
+                            if (status) {
+                              statuses[otherUser.id] = status;
+                            }
+                          } catch (err) {
+                            console.warn('Failed to get connection status:', err);
+                          }
+                        }
+                        setConnectionStatuses(statuses);
+                      } catch (err) {
+                        console.warn('Failed to load connection data:', err);
+                        setIncomingRequests([]);
+                        setConnectionStatuses({});
+                      }
+                    }
+                    
+                    // Load recommendations (non-blocking)
+                    try {
+                      const recs = await getRecommendations(signedInUser.id, signedInUser);
+                      setRecommendations(recs);
+                    } catch (err) {
+                      console.warn('Failed to load recommendations:', err);
+                      setRecommendations([]);
+                    }
                   } catch (err) {
-                    console.warn('Failed to load recommendations:', err);
-                    setRecommendations([]);
+                    console.error('Failed to load user data:', err);
+                    // App should still work even if data loading fails
                   }
-                } catch (err) {
-                  console.error('Failed to load user data:', err);
-                  // App should still work even if data loading fails
-                }
+                })();
               } catch (error: any) {
                 console.error('Sign in error:', error);
                 throw error; // Re-throw to show in modal
@@ -368,7 +370,11 @@ const App: React.FC = () => {
   });
 
   const handleConnectRequest = (target: any) => {
-    setSelectedRecipient(target);
+    if (!activeProfile) {
+      alert('Please select a profile first to make connections.');
+      return;
+    }
+    setSelectedRecipient({ ...target, profile: activeProfile });
     setShowIntroModal(true);
     setIntroText('');
   };
@@ -450,11 +456,12 @@ const App: React.FC = () => {
         name: selectedRecipient.user.name,
         tagline: selectedRecipient.user.tagline || selectedRecipient.user.profiles[0]?.activeSignal || selectedRecipient.user.profiles[0]?.industry || '',
         lastInteraction: new Date(),
-        privateNotes: `Initial intro: "${introText}"`,
+        privateNotes: `Initial intro: "${introText}"\nMade using ${activeProfile?.type || 'default'} profile`,
         status: 'PENDING',
         timeCommitment,
         introducedBy: user.id,
-        isInitiator: true
+        isInitiator: true,
+        profileId: activeProfileId || user.profiles[0]?.id
       };
       
       // Update recipient's stats to track introduction (non-blocking)
@@ -715,6 +722,56 @@ const App: React.FC = () => {
           </div>
         )}
         
+        {/* Profile Switcher - Prominent at top */}
+        {user && user.profiles.length > 0 && (
+          <div className="mb-6 p-4 bg-[#ff4d00]/5 border-2 border-[#ff4d00]/20 brutal-card">
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <div className="flex items-center gap-3">
+                <span className="text-[8px] font-black uppercase tracking-widest text-gray-400">Active Profile:</span>
+                <div className="flex items-center gap-2">
+                  {activeProfile?.photo ? (
+                    <img 
+                      src={activeProfile.photo} 
+                      alt={activeProfile.type}
+                      className="w-8 h-8 rounded-full object-cover border-2 border-[#ff4d00]"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full border-2 border-[#ff4d00] flex items-center justify-center bg-white">
+                      <span className="text-xs font-black text-[#ff4d00]">{activeProfile?.type[0] || '?'}</span>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-sm font-black uppercase text-[#ff4d00]">{activeProfile?.type || 'No Profile'}</p>
+                    {activeProfile?.activeSignal && (
+                      <p className="text-[9px] text-gray-600 font-bold">{activeProfile.activeSignal}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+              {user.profiles.length > 1 && (
+                <div className="flex gap-2">
+                  {user.profiles.map(profile => (
+                    <button
+                      key={profile.id}
+                      onClick={() => setActiveProfileId(profile.id)}
+                      className={`px-3 py-1.5 text-[9px] font-black uppercase border-2 transition-all ${
+                        activeProfileId === profile.id
+                          ? 'bg-[#ff4d00] text-white border-[#ff4d00] !shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
+                          : 'bg-white text-gray-600 border-gray-300 hover:border-[#ff4d00]'
+                      }`}
+                    >
+                      {profile.type}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <p className="text-[8px] text-gray-500 mt-2 italic">
+              All connections and messages are made using this profile identity
+            </p>
+          </div>
+        )}
+
         <header className="mb-8">
           <h2 className="text-3xl font-black uppercase tracking-tighter mb-3">
             {activeTab === 'SEARCH' && 'Search'}
@@ -724,8 +781,8 @@ const App: React.FC = () => {
           </h2>
 
           <p className="text-sm font-medium max-w-xl text-gray-500">
-            {activeTab === 'SEARCH' && 'Find people by industry or topic.'}
-            {activeTab === 'MESSAGES' && 'Chat with your connections and manage requests.'}
+            {activeTab === 'SEARCH' && `Find people by industry or topic${activeProfile ? ` as ${activeProfile.type}` : ''}.`}
+            {activeTab === 'MESSAGES' && `Chat with your connections${activeProfile ? ` as ${activeProfile.type}` : ''}.`}
             {activeTab === 'NOTES' && 'Your connections and incoming requests.'}
             {activeTab === 'RULES' && 'The principles that guide networking on this platform.'}
           </p>
@@ -1074,10 +1131,11 @@ const App: React.FC = () => {
                       <div key={result.user.id} className="relative">
                         <ProfileCard 
                           user={result.user} 
-                          onConnect={(usr, prof) => handleConnectRequest({ user: usr, profile: prof })} 
+                          onConnect={(usr, prof) => handleConnectRequest({ user: usr, profile: activeProfile || prof })} 
                           canAfford={true}
                           discoveryUsers={discoveryUsers}
                           connectionStatus={connectionStatuses[result.user.id] || 'NOT_CONNECTED'}
+                          activeProfile={activeProfile}
                           onAcceptRequest={async (userId) => {
                             const request = incomingRequests.find(r => r.userId === userId);
                             if (request) {
@@ -1133,14 +1191,15 @@ const App: React.FC = () => {
                               onConnect={(usr, prof) => {
                                 const status = connectionStatuses[result.user.id] || 'NOT_CONNECTED';
                                 if (status === 'CONNECTED') {
-                                  handleOpenChat({ user: usr, profile: prof });
+                                  handleOpenChat({ user: usr, profile: activeProfile || prof });
                                 } else {
-                                  handleConnectRequest({ user: usr, profile: prof });
+                                  handleConnectRequest({ user: usr, profile: activeProfile || prof });
                                 }
                               }}
                               canAfford={true}
                               discoveryUsers={discoveryUsers}
                               connectionStatus={connectionStatuses[result.user.id] || 'NOT_CONNECTED'}
+                              activeProfile={activeProfile}
                               onAcceptRequest={async (userId) => {
                                 const request = incomingRequests.find(r => r.userId === userId);
                                 if (request) {
@@ -1409,11 +1468,12 @@ const App: React.FC = () => {
                   name: user.name,
                   tagline: user.profiles[0]?.activeSignal || user.profiles[0]?.industry || user.tagline || '',
                   lastInteraction: new Date(),
-                  privateNotes: `Intro from ${user.name}:\nContext: "${context}"\nTime commitment: ${timeCommitment}\n\nYou can Accept, Redirect, or Decline.`,
+                  privateNotes: `Intro from ${user.name} (${activeProfile?.type || 'default'} profile):\nContext: "${context}"\nTime commitment: ${timeCommitment}\n\nYou can Accept, Redirect, or Decline.`,
                   status: 'PENDING',
                   timeCommitment,
                   introducedBy: user.id,
-                  isInitiator: false
+                  isInitiator: false,
+                  profileId: activeProfileId || user.profiles[0]?.id
                 };
                 
                 // Save both connection records

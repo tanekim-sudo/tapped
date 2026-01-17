@@ -9,6 +9,7 @@ interface ProfileCardProps {
   connectionStatus?: 'CONNECTED' | 'PENDING_SENT' | 'PENDING_RECEIVED' | 'NOT_CONNECTED';
   onAcceptRequest?: (userId: string) => void;
   onDeclineRequest?: (userId: string) => void;
+  activeProfile?: ContextProfile; // Show which profile will be used for connection
 }
 
 const ProfileCard: React.FC<ProfileCardProps> = ({ 
@@ -18,7 +19,8 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
   discoveryUsers = [],
   connectionStatus = 'NOT_CONNECTED',
   onAcceptRequest,
-  onDeclineRequest
+  onDeclineRequest,
+  activeProfile
 }) => {
   const primaryProfile = user.profiles[0];
   const initials = user.name.split(' ').map(n => n[0]).join('');
@@ -92,7 +94,13 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
         </div>
       </div>
 
-      <div className="w-full sm:w-28 sm:border-l border-gray-100 sm:pl-4 flex flex-col justify-center items-center text-center">
+      <div className="w-full sm:w-32 sm:border-l border-gray-100 sm:pl-4 flex flex-col justify-center items-center text-center gap-2">
+        {/* Show active profile indicator */}
+        {activeProfile && (
+          <div className="mb-2 p-1.5 bg-[#ff4d00]/10 border border-[#ff4d00]/20 rounded">
+            <p className="text-[7px] font-black uppercase text-[#ff4d00]">As {activeProfile.type}</p>
+          </div>
+        )}
         {/* Show follow-through rate if available */}
         {user.stats.followThroughRate !== undefined && user.stats.followThroughRate >= 80 && (
           <div className="mb-2">
