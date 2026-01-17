@@ -8,6 +8,7 @@ interface ProfileEditModalProps {
 }
 
 const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ profile, onSave, onClose }) => {
+  const [privateName, setPrivateName] = useState(profile.privateName || '');
   const [bio, setBio] = useState(profile.bio || '');
   const [industry, setIndustry] = useState(profile.industry || '');
   const [topics, setTopics] = useState<string[]>(profile.topics || []);
@@ -73,6 +74,7 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ profile, onSave, on
 
   const handleSave = () => {
     onSave({
+      privateName: privateName.trim() || undefined,
       bio: bio.trim(),
       industry: industry.trim(),
       topics,
@@ -98,7 +100,7 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ profile, onSave, on
       <div className="bg-white w-full max-w-2xl p-8 md:p-12 brutal-card !shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-start mb-8">
           <h3 className="text-3xl font-black tracking-tighter uppercase leading-none">
-            Edit {profile.type} Profile
+            Edit {profile.privateName || profile.type} Profile
           </h3>
           <button 
             onClick={onClose}
@@ -109,6 +111,22 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ profile, onSave, on
         </div>
 
         <div className="space-y-6">
+          {/* Private Profile Name */}
+          <div>
+            <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 block">
+              Profile Name (Private - only you can see this)
+            </label>
+            <input
+              type="text"
+              value={privateName}
+              onChange={(e) => setPrivateName(e.target.value)}
+              placeholder="e.g., My Work Profile, Founder Mode, etc."
+              className="w-full p-3 border border-gray-200 focus:border-[#ff4d00] outline-none"
+              maxLength={30}
+            />
+            <p className="text-[8px] text-gray-400 mt-1">This name is private and only visible to you</p>
+          </div>
+
           {/* Photo */}
           <div>
             <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-3 block">

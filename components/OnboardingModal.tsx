@@ -7,6 +7,7 @@ interface OnboardingModalProps {
 }
 
 const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, userName }) => {
+  const [profileName, setProfileName] = useState(''); // Private profile name
   const [industry, setIndustry] = useState('');
   const [topics, setTopics] = useState<string[]>([]);
   const [topicInput, setTopicInput] = useState('');
@@ -27,7 +28,8 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, userName 
     
     const profile: ContextProfile = {
       id: `profile_${Date.now()}`,
-      type: ContextType.FOUNDER, // Default to FOUNDER for new profiles
+      type: ContextType.FOUNDER, // Default type
+      privateName: profileName.trim() || undefined, // Private name (customizable, not shown to others)
       industry: industry.trim(),
       topics,
       availabilityRules: '',
@@ -52,6 +54,21 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, userName 
           </div>
           
           <div className="space-y-4 mb-6">
+            <div>
+              <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 block">
+                Profile Name (Private - only you can see this)
+              </label>
+              <input
+                type="text"
+                value={profileName}
+                onChange={(e) => setProfileName(e.target.value)}
+                placeholder="e.g., My Work Profile, Founder Mode, etc."
+                className="w-full p-4 border-2 border-gray-200 focus:border-[#ff4d00] outline-none text-sm font-medium"
+                maxLength={30}
+              />
+              <p className="text-[8px] text-gray-400 mt-1">This name is private and only visible to you</p>
+            </div>
+
             <div>
               <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 block">
                 Industry
@@ -110,7 +127,7 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, userName 
 
           <button
             onClick={handleComplete}
-            disabled={!industry.trim()}
+            disabled={!industry.trim() || !profileName.trim()}
             className="btn-brutal !bg-black !text-white w-full disabled:opacity-30 disabled:cursor-not-allowed"
           >
             Create Profile

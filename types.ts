@@ -18,6 +18,7 @@ export interface UserStats {
 export interface ContextProfile {
   id: string;
   type: ContextType;
+  privateName?: string; // Private profile name (not shown to others) - customizable
   bio: string;
   industry: string; // e.g., "Tech", "VC", "Education"
   topics: string[]; // e.g., ["Startups", "AI", "Networking"]

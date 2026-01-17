@@ -436,7 +436,7 @@ const App: React.FC = () => {
       name: target.user.name,
       tagline: target.user.tagline || target.user.profiles[0]?.activeSignal || target.user.profiles[0]?.industry || '',
       lastInteraction: new Date(),
-      privateNotes: `Connected via ${activeProfile?.type || 'default'} profile`,
+      privateNotes: `Connected via ${activeProfile?.privateName || activeProfile?.type || 'default'} profile`,
       status: 'ACTIVE',
       isInitiator: true,
       profileId: activeProfileId || user.profiles[0]?.id
@@ -663,7 +663,7 @@ const App: React.FC = () => {
             )}
             <div className="overflow-hidden">
               <p className="text-[8px] font-black uppercase truncate">{user.name}</p>
-              <p className="text-[8px] text-[#ff4d00] font-black uppercase tracking-tighter">{activeProfile?.type || 'No profile'} identity</p>
+              <p className="text-[8px] text-[#ff4d00] font-black uppercase tracking-tighter">{activeProfile?.privateName || activeProfile?.type || 'No profile'} identity</p>
             </div>
           </div>
           
@@ -717,12 +717,12 @@ const App: React.FC = () => {
                   {activeProfile?.photo ? (
                     <img 
                       src={activeProfile.photo} 
-                      alt={activeProfile.type}
+                      alt={activeProfile.privateName || activeProfile.type}
                       className="w-8 h-8 rounded-full object-cover border-2 border-[#ff4d00]"
                     />
                   ) : (
                     <div className="w-8 h-8 rounded-full border-2 border-[#ff4d00] flex items-center justify-center bg-white">
-                      <span className="text-xs font-black text-[#ff4d00]">{activeProfile?.type[0] || '?'}</span>
+                      <span className="text-xs font-black text-[#ff4d00]">{(activeProfile?.privateName || activeProfile?.type || '?')[0]}</span>
                     </div>
                   )}
                   <div>
@@ -766,8 +766,8 @@ const App: React.FC = () => {
           </h2>
 
           <p className="text-sm font-medium max-w-xl text-gray-500">
-            {activeTab === 'SEARCH' && `Find people by industry or topic${activeProfile ? ` as ${activeProfile.type}` : ''}.`}
-            {activeTab === 'MESSAGES' && `Chat with your connections${activeProfile ? ` as ${activeProfile.type}` : ''}.`}
+            {activeTab === 'SEARCH' && `Find people by industry or topic${activeProfile ? ` as ${activeProfile.privateName || activeProfile.type}` : ''}.`}
+            {activeTab === 'MESSAGES' && `Chat with your connections${activeProfile ? ` as ${activeProfile.privateName || activeProfile.type}` : ''}.`}
             {activeTab === 'NOTES' && 'Your connections and incoming requests.'}
             {activeTab === 'RULES' && 'The principles that guide networking on this platform.'}
           </p>

@@ -54,7 +54,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                 <div className="flex-grow">
                   <div className="flex justify-between items-start mb-2">
                     <span className={`text-[9px] font-black uppercase tracking-widest ${activeProfileId === p.id ? 'text-[#ff4d00]' : 'text-gray-400'}`}>
-                      {p.type} Node {activeProfileId === p.id && '(Active)'}
+                      {p.privateName || p.type} Node {activeProfileId === p.id && '(Active)'}
                     </span>
                     <div className="flex items-center gap-2">
                       <button
