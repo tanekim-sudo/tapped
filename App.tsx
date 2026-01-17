@@ -146,19 +146,20 @@ const App: React.FC = () => {
             setDiscoveryUsers([]);
           }
           
-          // Check if onboarding needed - require at least one profile
-          if (currentUser.profiles.length === 0) {
-            setShowOnboarding(true);
-          } else if (!onboardingService.isWalkthroughComplete()) {
+          // Don't auto-show onboarding on page load for existing users
+          // Onboarding should only show after sign-up (handled in onSignUp)
+          // Only show walkthrough if not completed
+          if (!onboardingService.isWalkthroughComplete() && currentUser.profiles.length > 0) {
             // Show walkthrough after a short delay
             setTimeout(() => {
               setShowWalkthrough(true);
             }, 1000);
           }
           
-          // Mark as initialized - user is logged in, skip splash and go to app
+          // Mark as initialized - user is logged in
           setIsInitialized(true);
-          setShowSplash(false); // Skip splash if logged in
+          // Keep splash visible for a moment even if logged in for better UX
+          // It will be hidden after splash animation completes
         } else {
           // No user - mark initialized, show splash then login
           setIsInitialized(true);
@@ -310,24 +311,21 @@ const App: React.FC = () => {
   }, [searchQuery, user]);
 
 
-  // Show splash screen first (only if not logged in)
-  if (showSplash && !user) {
+  // Show splash screen first - for everyone on initial load
+  if (showSplash) {
     return (
       <SplashScreen 
         onComplete={() => {
           setShowSplash(false);
-          // After splash, show login if not logged in
+          // After splash completes:
+          // - If not logged in, show login
+          // - If logged in, show app (splash already delayed by 2 seconds)
           if (!user && isInitialized) {
             setShowLoginModal(true);
           }
         }} 
       />
     );
-  }
-  
-  // If user is logged in, skip splash
-  if (user && showSplash) {
-    setShowSplash(false);
   }
 
   // If not logged in and initialized, show login
@@ -429,7 +427,8 @@ const App: React.FC = () => {
                 setDiscoveryUsers([]);
                 setConnectionStatuses({});
                 setShowLoginModal(false);
-                // Force onboarding for new users (they have no profiles)
+                // Force onboarding for new users after sign up (they have no profiles)
+                // Only show after sign up, not on login
                 setShowOnboarding(true);
               } catch (error: any) {
                 console.error('Sign up error:', error);

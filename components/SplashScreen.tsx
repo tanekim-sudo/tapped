@@ -8,19 +8,16 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
   const [phase, setPhase] = useState<'initial' | 'animating' | 'complete'>('initial');
 
   useEffect(() => {
-    // Start animation after a brief delay
-    const timer = setTimeout(() => {
-      setPhase('animating');
-    }, 300);
+    // Start animation immediately - no delay for better UX
+    setPhase('animating');
 
-    // Complete after animation
+    // Complete after animation - keep visible for at least 2 seconds
     const completeTimer = setTimeout(() => {
       setPhase('complete');
       setTimeout(onComplete, 200);
     }, 2000);
 
     return () => {
-      clearTimeout(timer);
       clearTimeout(completeTimer);
     };
   }, [onComplete]);
