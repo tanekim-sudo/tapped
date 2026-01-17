@@ -69,11 +69,16 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                       <div className={`w-2 h-2 ${activeProfileId === p.id ? 'bg-[#ff4d00]' : 'bg-gray-200'}`}></div>
                     </div>
                   </div>
-                  <p className="text-sm font-bold italic text-gray-800 leading-relaxed mb-2">"{p.bio}"</p>
                   {p.industry && (
                     <p className="text-[9px] font-bold text-gray-600 mb-1">
                       <span className="text-gray-400">Industry: </span>{p.industry}
                     </p>
+                  )}
+                  {p.activeSignal && (
+                    <div className="mb-2 p-2 bg-[#ff4d00]/10 border border-[#ff4d00]/20">
+                      <p className="text-[8px] font-black uppercase text-[#ff4d00] mb-1">Active Signal</p>
+                      <p className="text-xs font-bold text-gray-800">{p.activeSignal}</p>
+                    </div>
                   )}
                   {p.topics && p.topics.length > 0 && (
                     <div className="mb-2">
@@ -86,20 +91,29 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                       </div>
                     </div>
                   )}
-                  {(p.availabilityRules || p.location) && (
-                    <div className="space-y-1 mt-2">
-                      {p.availabilityRules && (
-                        <p className="text-[9px] font-bold text-gray-600">
-                          <span className="text-gray-400">Meetings: </span>{p.availabilityRules}
-                        </p>
-                      )}
-                      {p.location && (
-                        <p className="text-[9px] font-bold text-gray-600">
-                          <span className="text-gray-400">Location: </span>{p.location}
-                        </p>
-                      )}
+                  <div className="space-y-1 mt-2">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${p.isAvailable ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                      <span className="text-[9px] font-bold text-gray-600">
+                        {p.isAvailable ? 'Available' : 'Unavailable'}
+                      </span>
                     </div>
-                  )}
+                    {p.availabilityRules && (
+                      <p className="text-[9px] font-bold text-gray-600">
+                        <span className="text-gray-400">Limits: </span>{p.availabilityRules}
+                      </p>
+                    )}
+                    {p.responseReliability !== undefined && (
+                      <p className="text-[9px] font-bold text-gray-600">
+                        <span className="text-gray-400">Response Reliability: </span>{p.responseReliability}%
+                      </p>
+                    )}
+                    {p.location && (
+                      <p className="text-[9px] font-bold text-gray-600">
+                        <span className="text-gray-400">Location: </span>{p.location}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
               {p.openTo.length > 0 && (

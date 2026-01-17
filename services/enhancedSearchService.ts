@@ -36,7 +36,7 @@ export const enhancedSearch = async (
       id: u.id,
       name: u.name,
       tagline: u.tagline,
-      bio: u.profiles[0]?.bio || '',
+      activeSignal: u.profiles[0]?.activeSignal || '',
       industry: u.profiles[0]?.industry || '',
       topics: u.profiles[0]?.topics || [],
       location: u.profiles[0]?.location || '',
@@ -180,7 +180,7 @@ export const getRecommendations = async (
     const usersData = allUsers.map(u => ({
       id: u.id,
       name: u.name,
-      bio: u.profiles[0]?.bio || '',
+      activeSignal: u.profiles[0]?.activeSignal || '',
       industry: u.profiles[0]?.industry || '',
       topics: u.profiles[0]?.topics || [],
       openTo: u.profiles[0]?.openTo || [],
@@ -196,7 +196,7 @@ export const getRecommendations = async (
       body: JSON.stringify({
         type: 'recommendations',
         currentUser: {
-          bio: currentProfile?.bio || '',
+          activeSignal: currentProfile?.activeSignal || '',
           industry: currentProfile?.industry || '',
           topics: currentProfile?.topics || [],
           openTo: currentProfile?.openTo || []

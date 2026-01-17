@@ -7,21 +7,34 @@ interface OnboardingModalProps {
 }
 
 const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, userName }) => {
-  const [bio, setBio] = useState('');
   const [industry, setIndustry] = useState('');
+  const [topics, setTopics] = useState<string[]>([]);
+  const [topicInput, setTopicInput] = useState('');
+
+  const handleAddTopic = () => {
+    if (topicInput.trim() && !topics.includes(topicInput.trim())) {
+      setTopics([...topics, topicInput.trim()]);
+      setTopicInput('');
+    }
+  };
+
+  const handleRemoveTopic = (topic: string) => {
+    setTopics(topics.filter(t => t !== topic));
+  };
 
   const handleComplete = () => {
-    if (!bio.trim()) return;
+    if (!industry.trim()) return;
     
     const profile: ContextProfile = {
       id: `profile_${Date.now()}`,
-      type: ContextType.PROFESSIONAL,
-      bio: bio.trim(),
+      type: ContextType.FOUNDER, // Default to FOUNDER for new profiles
       industry: industry.trim(),
-      topics: [],
+      topics,
       availabilityRules: '',
+      isAvailable: true,
       location: '',
-      openTo: [],
+      openTo: ['advice', 'intros', 'chats'], // Default open to all
+      responseReliability: 100, // Start at 100%
       isActive: true
     };
     onComplete(profile);
@@ -41,19 +54,6 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, userName 
           <div className="space-y-4 mb-6">
             <div>
               <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 block">
-                Bio
-              </label>
-              <textarea
-                value={bio}
-                onChange={(e) => setBio(e.target.value)}
-                placeholder="e.g., Building a distributed database. Looking to connect with engineers."
-                className="w-full p-4 border-2 border-gray-200 focus:border-[#ff4d00] outline-none h-24 resize-none text-sm font-medium"
-                autoFocus
-              />
-            </div>
-
-            <div>
-              <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 block">
                 Industry
               </label>
               <input
@@ -63,13 +63,54 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, userName 
                 placeholder="e.g., Tech, VC, Education"
                 className="w-full p-4 border-2 border-gray-200 focus:border-[#ff4d00] outline-none text-sm font-medium"
                 maxLength={50}
+                autoFocus
               />
+            </div>
+
+            <div>
+              <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 block">
+                Topics / Domains
+              </label>
+              <div className="flex gap-2 mb-2">
+                <input
+                  type="text"
+                  value={topicInput}
+                  onChange={(e) => setTopicInput(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleAddTopic()}
+                  placeholder="e.g., AI, Startups, Networking"
+                  className="flex-1 p-3 border-2 border-gray-200 focus:border-[#ff4d00] outline-none text-sm font-medium"
+                />
+                <button
+                  onClick={handleAddTopic}
+                  className="btn-brutal !bg-black !text-white px-4"
+                >
+                  Add
+                </button>
+              </div>
+              {topics.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {topics.map(topic => (
+                    <span
+                      key={topic}
+                      className="inline-flex items-center gap-2 px-3 py-1 bg-gray-50 border border-gray-200 text-xs"
+                    >
+                      {topic}
+                      <button
+                        onClick={() => handleRemoveTopic(topic)}
+                        className="text-red-400 hover:text-red-600"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
           <button
             onClick={handleComplete}
-            disabled={!bio.trim()}
+            disabled={!industry.trim()}
             className="btn-brutal !bg-black !text-white w-full disabled:opacity-30 disabled:cursor-not-allowed"
           >
             Create Profile

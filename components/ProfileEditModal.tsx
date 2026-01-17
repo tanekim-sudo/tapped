@@ -54,12 +54,14 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ profile, onSave, on
 
   const handleSave = () => {
     onSave({
-      bio: bio.trim(),
       industry: industry.trim(),
       topics,
-      availabilityRules: meetingTypes.trim(),
+      availabilityRules: availabilityRules.trim(),
+      isAvailable,
       location: location.trim(),
       openTo,
+      responseReliability,
+      activeSignal: activeSignal.trim() || undefined,
       photo: photo || undefined
     });
     onClose();
@@ -129,20 +131,6 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ profile, onSave, on
             </div>
           </div>
 
-          {/* Bio */}
-          <div>
-            <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 block">
-              Bio
-            </label>
-            <textarea
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              className="w-full p-4 border border-gray-200 focus:border-[#ff4d00] outline-none h-32 resize-none"
-              maxLength={300}
-            />
-            <p className="text-[8px] text-gray-400 mt-2">{bio.length}/300</p>
-          </div>
-
           {/* Industry */}
           <div>
             <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 block">
@@ -199,19 +187,39 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ profile, onSave, on
             )}
           </div>
 
-          {/* Meeting Types */}
+          {/* Response Reliability */}
           <div>
             <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 block">
-              Meeting Types
+              Response Reliability
+            </label>
+            <div className="flex items-center gap-4">
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={responseReliability}
+                onChange={(e) => setResponseReliability(Number(e.target.value))}
+                className="flex-1"
+              />
+              <span className="text-sm font-bold w-16 text-right">{responseReliability}%</span>
+            </div>
+            <p className="text-[8px] text-gray-400 mt-1">Your response rate and reliability score</p>
+          </div>
+
+          {/* Active Signal */}
+          <div>
+            <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 block">
+              Active Signal (Optional)
             </label>
             <input
               type="text"
-              value={meetingTypes}
-              onChange={(e) => setMeetingTypes(e.target.value)}
-              placeholder="e.g., Coffee chats, Video calls, In-person"
+              value={activeSignal}
+              onChange={(e) => setActiveSignal(e.target.value)}
+              placeholder="e.g., Looking for AI engineers, Raising seed round"
               className="w-full p-3 border border-gray-200 focus:border-[#ff4d00] outline-none"
-              maxLength={100}
+              maxLength={150}
             />
+            <p className="text-[8px] text-gray-400 mt-1">Current active signal or ask</p>
           </div>
 
           {/* Location */}
@@ -232,22 +240,41 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ profile, onSave, on
           {/* Open To */}
           <div>
             <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 block">
-              Open To
+              What You're Open To
             </label>
-            <div className="flex gap-2 mb-3">
+            <div className="mb-3">
+              <div className="flex flex-wrap gap-2 mb-2">
+                {['advice', 'intros', 'chats'].map(option => (
+                  <label key={option} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={openTo.includes(option)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setOpenTo([...openTo, option]);
+                        } else {
+                          setOpenTo(openTo.filter(o => o !== option));
+                        }
+                      }}
+                      className="w-4 h-4 border-2 border-gray-300 checked:bg-[#ff4d00] checked:border-[#ff4d00]"
+                    />
+                    <span className="text-sm font-medium capitalize">{option}</span>
+                  </label>
+                ))}
+              </div>
               <input
                 type="text"
                 value={openToInput}
                 onChange={(e) => setOpenToInput(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleAddOpenTo()}
-                placeholder="e.g., Pitch feedback, Mentorship"
-                className="flex-1 p-3 border border-gray-200 focus:border-[#ff4d00] outline-none"
+                placeholder="Add custom option (e.g., Pitch feedback, Mentorship)"
+                className="w-full p-3 border border-gray-200 focus:border-[#ff4d00] outline-none"
               />
               <button
                 onClick={handleAddOpenTo}
-                className="btn-brutal !bg-black !text-white px-4"
+                className="btn-brutal !bg-black !text-white px-4 mt-2"
               >
-                Add
+                Add Custom
               </button>
             </div>
             {openTo.length > 0 && (

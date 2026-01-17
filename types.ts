@@ -1,9 +1,11 @@
 export enum ContextType {
-  PROFESSIONAL = 'Professional',
-  BUILDER = 'Builder',
-  LEARNER = 'Learner',
+  FOUNDER = 'Founder',
+  PERSONAL = 'Personal',
   ANONYMOUS = 'Anonymous',
-  LOCAL = 'Local'
+  PROFESSIONAL = 'Professional', // Keep for backward compatibility
+  BUILDER = 'Builder', // Keep for backward compatibility
+  LEARNER = 'Learner', // Keep for backward compatibility
+  LOCAL = 'Local' // Keep for backward compatibility
 }
 
 export interface UserStats {
@@ -40,6 +42,19 @@ export interface NetworkConnection {
   isInitiator: boolean; // true if this user sent the request
 }
 
+export interface NetworkVaultContact {
+  id: string;
+  name: string;
+  email?: string;
+  linkedInUrl?: string;
+  context: 'founder' | 'investor' | 'operator' | 'friend' | 'other';
+  strength: 'strong' | 'medium' | 'loose';
+  goodFor: string[]; // What they're good for (e.g., ["AI advice", "VC intros", "Engineering"])
+  notes?: string;
+  importedFrom?: 'linkedin' | 'contacts' | 'manual';
+  userId: string; // Owner of this vault contact
+}
+
 export interface User {
   id: string;
   name: string;
@@ -47,4 +62,5 @@ export interface User {
   tagline: string;
   stats: UserStats;
   profiles: ContextProfile[];
+  networkVault?: NetworkVaultContact[]; // Private network vault
 }

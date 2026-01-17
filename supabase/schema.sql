@@ -22,12 +22,15 @@ CREATE TABLE IF NOT EXISTS profiles (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   type TEXT NOT NULL,
-  bio TEXT NOT NULL,
+  bio TEXT, -- Now optional (no bios per spec)
   industry TEXT,
   topics TEXT[] DEFAULT '{}',
   availability_rules TEXT,
+  is_available BOOLEAN DEFAULT true, -- On/off toggle for availability
   location TEXT,
   open_to TEXT[] DEFAULT '{}',
+  response_reliability INTEGER DEFAULT 100, -- 0-100, tracks response rate/reliability
+  active_signal TEXT, -- Active Signal if any
   photo TEXT,
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -123,4 +126,45 @@ CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON profiles
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_connections_updated_at BEFORE UPDATE ON connections
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Network Vault Contacts table (private contacts per user)
+CREATE TABLE IF NOT EXISTS network_vault_contacts (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  email TEXT,
+  linkedin_url TEXT,
+  context TEXT NOT NULL CHECK (context IN ('founder', 'investor', 'operator', 'friend', 'other')),
+  strength TEXT NOT NULL CHECK (strength IN ('strong', 'medium', 'loose')),
+  good_for TEXT[] DEFAULT '{}',
+  notes TEXT,
+  imported_from TEXT CHECK (imported_from IN ('linkedin', 'contacts', 'manual')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Indexes for network vault
+CREATE INDEX IF NOT EXISTS idx_network_vault_user_id ON network_vault_contacts(user_id);
+CREATE INDEX IF NOT EXISTS idx_network_vault_context ON network_vault_contacts(context);
+CREATE INDEX IF NOT EXISTS idx_network_vault_strength ON network_vault_contacts(strength);
+CREATE INDEX IF NOT EXISTS idx_network_vault_good_for ON network_vault_contacts USING GIN(good_for);
+
+-- RLS for network vault contacts
+ALTER TABLE network_vault_contacts ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view their own vault contacts" ON network_vault_contacts
+  FOR SELECT USING (true); -- For now, allowing all reads (can restrict later)
+
+CREATE POLICY "Users can insert their own vault contacts" ON network_vault_contacts
+  FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "Users can update their own vault contacts" ON network_vault_contacts
+  FOR UPDATE USING (true);
+
+CREATE POLICY "Users can delete their own vault contacts" ON network_vault_contacts
+  FOR DELETE USING (true);
+
+-- Trigger for network vault updated_at
+CREATE TRIGGER update_network_vault_updated_at BEFORE UPDATE ON network_vault_contacts
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

@@ -48,9 +48,12 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
 
         {/* Simplified profile - only essential info */}
         <div className="space-y-2">
-          <p className="text-sm font-bold leading-snug tracking-tight text-gray-800">
-            {primaryProfile?.bio}
-          </p>
+          {primaryProfile?.activeSignal && (
+            <div className="mb-2 p-2 bg-[#ff4d00]/10 border border-[#ff4d00]/20">
+              <p className="text-[8px] font-black uppercase text-[#ff4d00] mb-1">Active Signal</p>
+              <p className="text-xs font-bold text-gray-800">{primaryProfile.activeSignal}</p>
+            </div>
+          )}
           
           {/* What they're open to */}
           {primaryProfile?.openTo && primaryProfile.openTo.length > 0 && (
@@ -106,7 +109,7 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
             <span className="text-[8px] font-black uppercase text-[#ff4d00] mb-2 block">Connected</span>
             <button 
               onClick={() => onConnect(user, primaryProfile)}
-              className="btn-brutal w-full !text-xs !py-2 !bg-gray-50"
+              className="btn-brutal w-full !text-xs !py-2 !bg-black !text-white hover:!bg-[#ff4d00]"
             >
               Message
             </button>

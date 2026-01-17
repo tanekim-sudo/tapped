@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, ContextProfile, NetworkConnection, ContextType } from './types';
+import { User, ContextProfile, NetworkConnection, ContextType, NetworkVaultContact } from './types';
 import ProfileCard from './components/ProfileCard';
 import NetworkView from './components/NetworkView';
 import ProfileView from './components/ProfileView';
@@ -9,6 +9,9 @@ import OnboardingModal from './components/OnboardingModal';
 import Walkthrough from './components/Walkthrough';
 import ProfileEditModal from './components/ProfileEditModal';
 import DatabaseStatus from './components/DatabaseStatus';
+import MessagesView from './components/MessagesView';
+import NetworkVault from './components/NetworkVault';
+import MakeIntroModal from './components/MakeIntroModal';
 import { getIntroSuggestion } from './services/claudeService';
 import { enhancedSearch, getRecommendations, getSearchSuggestions } from './services/enhancedSearchService';
 import { authService } from './services/authService';
@@ -17,14 +20,20 @@ import { dbService } from './services/supabaseService';
 import { onboardingService } from './services/onboardingService';
 
 const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'SEARCH' | 'NOTES'>('SEARCH');
+  const [activeTab, setActiveTab] = useState<'SEARCH' | 'NOTES' | 'MESSAGES' | 'RULES'>('SEARCH');
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchFilter, setSearchFilter] = useState<'industry' | 'topic'>('industry');
+  const [searchFilters, setSearchFilters] = useState<{
+    industry?: string;
+    topics?: string[];
+    openTo?: string[];
+    availability?: boolean;
+  }>({});
   const [searchResults, setSearchResults] = useState<Array<{ user: User; relevanceScore: number; matchReasons: string[]; suggestedConnectionType?: string }>>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchSuggestions, setSearchSuggestions] = useState<string[]>([]);
   const [recommendations, setRecommendations] = useState<Array<{ user: User; relevanceScore: number; matchReasons: string[]; suggestedConnectionType?: string }>>([]);
   const [user, setUser] = useState<User | null>(null);
+  const [networkVault, setNetworkVault] = useState<NetworkVaultContact[]>([]);
   const [activeProfileId, setActiveProfileId] = useState<string>('');
   const [connections, setConnections] = useState<NetworkConnection[]>([]);
   const [incomingRequests, setIncomingRequests] = useState<NetworkConnection[]>([]);
@@ -39,6 +48,9 @@ const App: React.FC = () => {
   const [timeCommitment, setTimeCommitment] = useState<'10min' | '15min' | 'async' | 'custom'>('15min');
   const [showDeclineModal, setShowDeclineModal] = useState(false);
   const [decliningConnection, setDecliningConnection] = useState<NetworkConnection | null>(null);
+  const [selectedChat, setSelectedChat] = useState<NetworkConnection | null>(null);
+  const [chatMessage, setChatMessage] = useState('');
+  const [showMakeIntroModal, setShowMakeIntroModal] = useState(false);
   const [boardFilter, setBoardFilter] = useState('');
   const [networkFilter, setNetworkFilter] = useState('');
   const [networkStatusFilter, setNetworkStatusFilter] = useState<'All Syncs' | 'Pending' | 'Archived'>('All Syncs');
@@ -65,6 +77,17 @@ const App: React.FC = () => {
           
           setConnections(userConnections);
           setDiscoveryUsers(discovery);
+          
+          // Load network vault (non-blocking)
+          try {
+            // TODO: Load from database when implemented
+            const storedVault = localStorage.getItem(`network_vault_${currentUser.id}`);
+            if (storedVault) {
+              setNetworkVault(JSON.parse(storedVault));
+            }
+          } catch (err) {
+            console.warn('Failed to load network vault:', err);
+          }
           
           // Load incoming connection requests (non-blocking)
           if (import.meta.env.VITE_SUPABASE_URL) {
@@ -154,19 +177,21 @@ const App: React.FC = () => {
     saveConnections();
   }, [connections, user]);
 
-  // Enhanced search with Claude
+  // Enhanced unified search with filters
   useEffect(() => {
     const performSearch = async () => {
-      if (!user || !searchQuery.trim()) {
+      if (!user || (!searchQuery.trim() && !searchFilters.industry && !searchFilters.topics?.length)) {
         setSearchResults([]);
         return;
       }
 
       setIsSearching(true);
       try {
-        const results = await enhancedSearch(searchQuery, user.id, {
-          industry: searchFilter === 'industry' ? searchQuery : undefined,
-          topic: searchFilter === 'topic' ? searchQuery : undefined
+        const results = await enhancedSearch(searchQuery || '', user.id, {
+          industry: searchFilters.industry,
+          topic: searchFilters.topics?.join(' ') || searchQuery || undefined,
+          openTo: searchFilters.openTo,
+          availability: searchFilters.availability
         });
         setSearchResults(results);
       } catch (error) {
@@ -179,7 +204,7 @@ const App: React.FC = () => {
 
     const debounceTimer = setTimeout(performSearch, 300);
     return () => clearTimeout(debounceTimer);
-  }, [searchQuery, searchFilter, user]);
+  }, [searchQuery, searchFilters, user]);
 
   // Get search suggestions
   useEffect(() => {
@@ -221,54 +246,75 @@ const App: React.FC = () => {
             onSignIn={async (email, password) => {
               try {
                 const signedInUser = await authService.signIn(email, password);
+                
+                if (!signedInUser) {
+                  throw new Error('Failed to sign in. Please try again.');
+                }
+                
+                // Set user first to ensure app renders
                 setUser(signedInUser);
+                setConnections([]);
+                setDiscoveryUsers([]);
+                setIncomingRequests([]);
+                setConnectionStatuses({});
+                setRecommendations([]);
+                
                 if (signedInUser.profiles.length > 0) {
                   setActiveProfileId(signedInUser.profiles[0].id);
                 }
                 
-                // Load data
-                const userConnections = await dataService.getConnections(signedInUser.id);
-                const discovery = await dataService.getDiscoveryUsers(signedInUser.id);
-                setConnections(userConnections);
-                setDiscoveryUsers(discovery);
-                
-                // Load incoming requests and connection statuses (non-blocking)
-                if (import.meta.env.VITE_SUPABASE_URL) {
-                  try {
-                    const incoming = await dbService.getIncomingRequests(signedInUser.id);
-                    setIncomingRequests(incoming);
-                    
-                    // Load connection statuses for first 20 users only (to avoid blocking)
-                    const statuses: Record<string, 'CONNECTED' | 'PENDING_SENT' | 'PENDING_RECEIVED' | 'NOT_CONNECTED'> = {};
-                    const usersToCheck = discovery.slice(0, 20);
-                    for (const otherUser of usersToCheck) {
-                      try {
-                        const status = await dbService.getConnectionStatus(signedInUser.id, otherUser.id);
-                        if (status) {
-                          statuses[otherUser.id] = status;
-                        }
-                      } catch (err) {
-                        console.warn('Failed to get connection status:', err);
-                      }
-                    }
-                    setConnectionStatuses(statuses);
-                  } catch (err) {
-                    console.warn('Failed to load connection data:', err);
-                    setIncomingRequests([]);
-                    setConnectionStatuses({});
-                  }
-                }
-                
-                // Load recommendations (non-blocking)
-                try {
-                  const recs = await getRecommendations(signedInUser.id, signedInUser);
-                  setRecommendations(recs);
-                } catch (err) {
-                  console.warn('Failed to load recommendations:', err);
-                  setRecommendations([]);
-                }
-                
+                // Close modal first
                 setShowLoginModal(false);
+                
+                // Load data asynchronously (non-blocking)
+                try {
+                  const [userConnections, discovery] = await Promise.all([
+                    dataService.getConnections(signedInUser.id).catch(() => []),
+                    dataService.getDiscoveryUsers(signedInUser.id).catch(() => [])
+                  ]);
+                  
+                  setConnections(userConnections);
+                  setDiscoveryUsers(discovery);
+                  
+                  // Load incoming requests and connection statuses (non-blocking)
+                  if (import.meta.env.VITE_SUPABASE_URL) {
+                    try {
+                      const incoming = await dbService.getIncomingRequests(signedInUser.id);
+                      setIncomingRequests(incoming);
+                      
+                      // Load connection statuses for first 20 users only (to avoid blocking)
+                      const statuses: Record<string, 'CONNECTED' | 'PENDING_SENT' | 'PENDING_RECEIVED' | 'NOT_CONNECTED'> = {};
+                      const usersToCheck = discovery.slice(0, 20);
+                      for (const otherUser of usersToCheck) {
+                        try {
+                          const status = await dbService.getConnectionStatus(signedInUser.id, otherUser.id);
+                          if (status) {
+                            statuses[otherUser.id] = status;
+                          }
+                        } catch (err) {
+                          console.warn('Failed to get connection status:', err);
+                        }
+                      }
+                      setConnectionStatuses(statuses);
+                    } catch (err) {
+                      console.warn('Failed to load connection data:', err);
+                      setIncomingRequests([]);
+                      setConnectionStatuses({});
+                    }
+                  }
+                  
+                  // Load recommendations (non-blocking)
+                  try {
+                    const recs = await getRecommendations(signedInUser.id, signedInUser);
+                    setRecommendations(recs);
+                  } catch (err) {
+                    console.warn('Failed to load recommendations:', err);
+                    setRecommendations([]);
+                  }
+                } catch (err) {
+                  console.error('Failed to load user data:', err);
+                  // App should still work even if data loading fails
+                }
               } catch (error: any) {
                 console.error('Sign in error:', error);
                 throw error; // Re-throw to show in modal
@@ -300,12 +346,12 @@ const App: React.FC = () => {
     );
   }
 
-  const activeProfile = user.profiles.find(p => p.id === activeProfileId) || (user.profiles[0] || null);
+  const activeProfile = user?.profiles?.find(p => p.id === activeProfileId) || (user?.profiles?.[0] || null);
   // Filter discovery users
   const filteredDiscoveryUsers = discoveryUsers.filter(u => 
     !boardFilter || 
     u.name.toLowerCase().includes(boardFilter.toLowerCase()) ||
-    u.profiles[0]?.bio.toLowerCase().includes(boardFilter.toLowerCase()) ||
+    (primaryProfile?.activeSignal && primaryProfile.activeSignal.toLowerCase().includes(boardFilter.toLowerCase())) ||
     u.profiles[0]?.type.toLowerCase().includes(boardFilter.toLowerCase())
   );
   
@@ -327,14 +373,30 @@ const App: React.FC = () => {
     setIntroText('');
   };
 
+  const handleOpenChat = (target: any) => {
+    // Find the connection for this user
+    const connection = connections.find(c => {
+      const otherUserId = c.connectedUserId || c.userId;
+      return otherUserId === target.user.id || c.userId === target.user.id;
+    });
+    
+    if (connection) {
+      setSelectedChat(connection);
+      setActiveTab('MESSAGES');
+    } else {
+      // If no connection exists, open connect modal
+      handleConnectRequest(target);
+    }
+  };
+
 
   const generateAIIntro = async () => {
     if (!selectedRecipient || !activeProfile) return;
     setIsGenerating(true);
     try {
       const suggestion = await getIntroSuggestion(
-        activeProfile.bio,
-        selectedRecipient.profile?.bio || '',
+        activeProfile.activeSignal || activeProfile.industry || '',
+        selectedRecipient.profile?.activeSignal || selectedRecipient.profile?.industry || '',
         'Networking'
       );
       setIntroText(suggestion || '');
@@ -386,7 +448,7 @@ const App: React.FC = () => {
         userId: user.id,
         connectedUserId: selectedRecipient.user.id,
         name: selectedRecipient.user.name,
-        tagline: selectedRecipient.user.tagline || selectedRecipient.user.profiles[0]?.bio || '',
+        tagline: selectedRecipient.user.tagline || selectedRecipient.user.profiles[0]?.activeSignal || selectedRecipient.user.profiles[0]?.industry || '',
         lastInteraction: new Date(),
         privateNotes: `Initial intro: "${introText}"`,
         status: 'PENDING',
@@ -498,6 +560,7 @@ const App: React.FC = () => {
       await authService.updateUser(user.id, updated);
       await dataService.addDiscoveryUser(updated);
       
+      // Mark onboarding as complete
       onboardingService.setOnboardingComplete();
       setShowOnboarding(false);
       
@@ -508,6 +571,7 @@ const App: React.FC = () => {
     } catch (error) {
       console.error('Failed to complete onboarding:', error);
       // Still close onboarding even if save fails
+      // Mark as complete since profile was created
       onboardingService.setOnboardingComplete();
       setShowOnboarding(false);
     }
@@ -516,13 +580,14 @@ const App: React.FC = () => {
   const handleCreateProfile = () => {
     const newProfile: ContextProfile = {
       id: `profile_${Date.now()}`,
-      type: ContextType.PROFESSIONAL,
-      bio: '',
+      type: ContextType.FOUNDER,
       industry: '',
       topics: [],
       availabilityRules: '',
+      isAvailable: true,
       location: '',
-      openTo: [],
+      openTo: ['advice', 'intros', 'chats'],
+      responseReliability: 100,
       isActive: false,
       photo: undefined
     };
@@ -568,7 +633,8 @@ const App: React.FC = () => {
         <div id="nav-tabs" className="flex lg:flex-col gap-4 lg:gap-6 flex-wrap lg:flex-grow">
           {[
             { id: 'SEARCH', label: 'Search' },
-            { id: 'NOTES', label: 'Notes', badge: incomingRequests.length > 0 ? incomingRequests.length : undefined },
+            { id: 'MESSAGES', label: 'Messages', badge: incomingRequests.length > 0 ? incomingRequests.length : undefined },
+            { id: 'NOTES', label: 'Notes' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -652,17 +718,85 @@ const App: React.FC = () => {
         <header className="mb-8">
           <h2 className="text-3xl font-black uppercase tracking-tighter mb-3">
             {activeTab === 'SEARCH' && 'Search'}
+            {activeTab === 'MESSAGES' && 'Messages'}
             {activeTab === 'NOTES' && 'Notes'}
+            {activeTab === 'RULES' && 'Ground Rules'}
           </h2>
 
           <p className="text-sm font-medium max-w-xl text-gray-500">
             {activeTab === 'SEARCH' && 'Find people by industry or topic.'}
+            {activeTab === 'MESSAGES' && 'Chat with your connections and manage requests.'}
             {activeTab === 'NOTES' && 'Your connections and incoming requests.'}
+            {activeTab === 'RULES' && 'The principles that guide networking on this platform.'}
           </p>
         </header>
 
 
         <section id="search-view" className="min-h-[50vh]">
+          {activeTab === 'MESSAGES' && user && (
+            <MessagesView
+              connections={connections}
+              incomingRequests={incomingRequests}
+              currentUserId={user.id}
+              discoveryUsers={discoveryUsers}
+              currentUser={user}
+              activeProfileId={activeProfileId}
+              onSelectChat={setSelectedChat}
+              onAcceptRequest={async (requestId, userId) => {
+                await updateConnection(requestId, { status: 'ACTIVE', lastInteraction: new Date() });
+                setIncomingRequests(prev => prev.filter(r => r.id !== requestId));
+                const refreshed = await dataService.getConnections(user.id);
+                setConnections(refreshed);
+                setConnectionStatuses(prev => ({ ...prev, [userId]: 'CONNECTED' }));
+                // Update selected chat if it was the accepted request
+                if (selectedChat?.id === requestId) {
+                  const updated = refreshed.find(c => c.id === requestId);
+                  if (updated) setSelectedChat(updated);
+                }
+              }}
+              onDeclineRequest={async (requestId, userId) => {
+                await updateConnection(requestId, { status: 'DECLINED' });
+                setIncomingRequests(prev => prev.filter(r => r.id !== requestId));
+                setConnectionStatuses(prev => ({ ...prev, [userId]: 'NOT_CONNECTED' }));
+                if (selectedChat?.id === requestId) {
+                  setSelectedChat(null);
+                }
+              }}
+              selectedChat={selectedChat}
+              onSendMessage={async (message: string) => {
+                if (!selectedChat || !user) return;
+                try {
+                  const updated = {
+                    ...selectedChat,
+                    lastInteraction: new Date(),
+                    privateNotes: (selectedChat.privateNotes || '') + `\n\nNew message: "${message}"`
+                  };
+                  // Update local state immediately for instant feedback
+                  setConnections(prev => prev.map(c => c.id === selectedChat.id ? updated : c));
+                  setSelectedChat(updated);
+                  // Then persist to database
+                  await updateConnection(selectedChat.id, updated);
+                  await dataService.saveConnection(user.id, updated);
+                  // Refresh to ensure sync
+                  const refreshed = await dataService.getConnections(user.id);
+                  setConnections(refreshed);
+                  const updatedChat = refreshed.find(c => c.id === selectedChat.id);
+                  if (updatedChat) {
+                    setSelectedChat(updatedChat);
+                  }
+                } catch (error) {
+                  console.error('Failed to send message:', error);
+                  // Revert on error
+                  const refreshed = await dataService.getConnections(user.id);
+                  setConnections(refreshed);
+                  const revertedChat = refreshed.find(c => c.id === selectedChat.id);
+                  if (revertedChat) setSelectedChat(revertedChat);
+                  throw error;
+                }
+              }}
+            />
+          )}
+
           {activeTab === 'NOTES' && user && (
             <div className="space-y-8">
               {/* Incoming Connection Requests */}
@@ -680,13 +814,14 @@ const App: React.FC = () => {
                         name: request.name,
                         profiles: [{
                           id: '',
-                          type: 'Professional' as any,
-                          bio: request.tagline,
+                          type: ContextType.FOUNDER,
                           industry: '',
                           topics: [],
                           availabilityRules: '',
+                          isAvailable: true,
                           location: '',
                           openTo: [],
+                          responseReliability: 100,
                           isActive: true
                         }],
                         stats: { conversationsCompleted: 0, peopleHelped: 0, followThroughRate: 100 },
@@ -721,7 +856,15 @@ const App: React.FC = () => {
 
               {/* Your Connections */}
               <div>
-                <h3 className="text-lg font-black uppercase mb-4">Your Connections</h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-black uppercase">Your Connections</h3>
+                  <button
+                    onClick={() => setShowMakeIntroModal(true)}
+                    className="btn-brutal !bg-[#ff4d00] !text-white text-xs px-4 py-2"
+                  >
+                    Make Intro
+                  </button>
+                </div>
                 <NetworkView
                   connections={filteredConnections}
                   onUpdate={updateConnection}
@@ -736,52 +879,187 @@ const App: React.FC = () => {
                   }}
                 />
               </div>
+
+              {/* Network Vault */}
+              <div className="border-t border-gray-100 pt-8 mt-12">
+                <NetworkVault
+                  contacts={networkVault}
+                  currentUserId={user.id}
+                  onAddContact={async (contact) => {
+                    const newContact: NetworkVaultContact = {
+                      ...contact,
+                      id: `vault_${user.id}_${Date.now()}`,
+                      userId: user.id
+                    };
+                    setNetworkVault(prev => [...prev, newContact]);
+                    // Save to localStorage for now
+                    localStorage.setItem(`network_vault_${user.id}`, JSON.stringify([...networkVault, newContact]));
+                  }}
+                  onUpdateContact={(id, updates) => {
+                    const updated = networkVault.map(c => c.id === id ? { ...c, ...updates } : c);
+                    setNetworkVault(updated);
+                    localStorage.setItem(`network_vault_${user.id}`, JSON.stringify(updated));
+                  }}
+                  onDeleteContact={(id) => {
+                    const filtered = networkVault.filter(c => c.id !== id);
+                    setNetworkVault(filtered);
+                    localStorage.setItem(`network_vault_${user.id}`, JSON.stringify(filtered));
+                  }}
+                  onSelectForIntro={(contact) => {
+                    // This will be handled by Make Intro modal which accepts vault contacts
+                    setShowMakeIntroModal(true);
+                  }}
+                />
+              </div>
             </div>
           )}
 
           {activeTab === 'SEARCH' && user && (
             <div>
-              <div className="mb-6 space-y-4">
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setSearchFilter('industry')}
-                    className={`btn-brutal flex-1 ${searchFilter === 'industry' ? '!bg-black !text-white' : ''}`}
-                  >
-                    Industry
-                  </button>
-                  <button
-                    onClick={() => setSearchFilter('topic')}
-                    className={`btn-brutal flex-1 ${searchFilter === 'topic' ? '!bg-black !text-white' : ''}`}
-                  >
-                    Topic
-                  </button>
-                </div>
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder={searchFilter === 'industry' ? 'Search by industry (e.g., Tech, VC, Education)...' : 'Search by topic (e.g., Startups, AI, Networking)...'}
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full p-4 border-2 border-gray-200 focus:border-[#ff4d00] outline-none text-sm"
-                  />
-                  {isSearching && (
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
-                      Searching...
-                    </div>
-                  )}
-                  {searchSuggestions.length > 0 && searchQuery.length >= 2 && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border-2 border-gray-200 z-10 max-h-48 overflow-y-auto">
-                      {searchSuggestions.map((suggestion, idx) => (
+              {/* Network Routing: Show relevant vault contacts when viewing users with active signals */}
+              {searchResults.length > 0 && searchResults.some(r => r.user.profiles[0]?.activeSignal) && networkVault.length > 0 && (
+                <div className="mb-6 p-4 bg-[#ff4d00]/5 border-l-4 border-[#ff4d00]">
+                  <h3 className="text-xs font-black uppercase tracking-widest text-[#ff4d00] mb-2">
+                    Network Routing
+                  </h3>
+                  <p className="text-[10px] text-gray-600 mb-3">
+                    These contacts in your vault could help with the signals below:
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {searchResults
+                      .filter(r => r.user.profiles[0]?.activeSignal)
+                      .flatMap(result => {
+                        const signal = result.user.profiles[0]?.activeSignal?.toLowerCase() || '';
+                        return networkVault
+                          .filter(contact => 
+                            contact.goodFor.some(g => signal.includes(g.toLowerCase()) || g.toLowerCase().includes(signal)) ||
+                            contact.context === 'investor' || contact.context === 'founder'
+                          )
+                          .slice(0, 3) // Limit to top 3 per signal
+                          .map(contact => ({ contact, signal: result.user.profiles[0]?.activeSignal, user: result.user }));
+                      })
+                      .slice(0, 5) // Max 5 total suggestions
+                      .map(({ contact, signal, user: signalUser }) => (
                         <button
-                          key={idx}
-                          onClick={() => setSearchQuery(suggestion)}
-                          className="w-full text-left p-3 hover:bg-gray-50 border-b border-gray-100 text-sm"
+                          key={`${contact.id}-${signalUser.id}`}
+                          onClick={() => {
+                            setSelectedRecipient({ user: signalUser });
+                            setShowMakeIntroModal(true);
+                            // Pre-select this vault contact in the modal
+                          }}
+                          className="text-[8px] font-bold uppercase bg-white border-2 border-[#ff4d00] px-2 py-1 hover:bg-[#ff4d00] hover:text-white transition-colors"
+                          title={`Connect ${signalUser.name} via ${contact.name}`}
                         >
-                          {suggestion}
+                          {contact.name} → {signalUser.name.split(' ')[0]}
                         </button>
                       ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="mb-6 space-y-4">
+                {/* Unified Search Bar with Filters */}
+                <div className="space-y-4">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Search by name, industry, topic, or signal..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full p-4 border-2 border-gray-200 focus:border-[#ff4d00] outline-none text-sm"
+                    />
+                    {isSearching && (
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
+                        Searching...
+                      </div>
+                    )}
+                    {searchSuggestions.length > 0 && searchQuery.length >= 2 && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border-2 border-gray-200 z-10 max-h-48 overflow-y-auto">
+                        {searchSuggestions.map((suggestion, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => setSearchQuery(suggestion)}
+                            className="w-full text-left p-3 hover:bg-gray-50 border-b border-gray-100 text-sm"
+                          >
+                            {suggestion}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Filter Pills */}
+                  <div className="flex flex-wrap gap-2 items-center">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">Filters:</span>
+                    
+                    {/* Industry Filter */}
+                    <div className="relative">
+                      <select
+                        value={searchFilters.industry || ''}
+                        onChange={(e) => setSearchFilters(prev => ({ ...prev, industry: e.target.value || undefined }))}
+                        className="p-2 border-2 border-gray-200 focus:border-[#ff4d00] outline-none text-xs font-bold uppercase"
+                      >
+                        <option value="">All Industries</option>
+                        <option value="Tech">Tech</option>
+                        <option value="VC">VC</option>
+                        <option value="Education">Education</option>
+                        <option value="Finance">Finance</option>
+                        <option value="Healthcare">Healthcare</option>
+                        <option value="Design">Design</option>
+                        <option value="Media">Media</option>
+                      </select>
                     </div>
-                  )}
+
+                    {/* Availability Filter */}
+                    <div className="relative">
+                      <select
+                        value={searchFilters.availability === true ? 'available' : searchFilters.availability === false ? 'unavailable' : 'all'}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setSearchFilters(prev => ({
+                            ...prev,
+                            availability: val === 'all' ? undefined : val === 'available'
+                          }));
+                        }}
+                        className="p-2 border-2 border-gray-200 focus:border-[#ff4d00] outline-none text-xs font-bold uppercase"
+                      >
+                        <option value="all">All Availability</option>
+                        <option value="available">Available Only</option>
+                        <option value="unavailable">Unavailable Only</option>
+                      </select>
+                    </div>
+
+                    {/* Open To Filter */}
+                    <div className="relative">
+                      <select
+                        value={searchFilters.openTo?.join(',') || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setSearchFilters(prev => ({
+                            ...prev,
+                            openTo: val ? val.split(',').filter(Boolean) : undefined
+                          }));
+                        }}
+                        className="p-2 border-2 border-gray-200 focus:border-[#ff4d00] outline-none text-xs font-bold uppercase"
+                      >
+                        <option value="">All Open To</option>
+                        <option value="advice">Advice</option>
+                        <option value="intros">Intros</option>
+                        <option value="chats">Chats</option>
+                        <option value="advice,intros">Advice + Intros</option>
+                      </select>
+                    </div>
+
+                    {/* Clear Filters */}
+                    {(searchFilters.industry || searchFilters.availability !== undefined || searchFilters.openTo?.length) && (
+                      <button
+                        onClick={() => setSearchFilters({})}
+                        className="text-[8px] font-bold uppercase text-gray-400 hover:text-[#ff4d00] px-2"
+                      >
+                        Clear Filters
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -852,7 +1130,14 @@ const App: React.FC = () => {
                           <div key={result.user.id} className="relative">
                             <ProfileCard 
                               user={result.user} 
-                              onConnect={(usr, prof) => handleConnectRequest({ user: usr, profile: prof })} 
+                              onConnect={(usr, prof) => {
+                                const status = connectionStatuses[result.user.id] || 'NOT_CONNECTED';
+                                if (status === 'CONNECTED') {
+                                  handleOpenChat({ user: usr, profile: prof });
+                                } else {
+                                  handleConnectRequest({ user: usr, profile: prof });
+                                }
+                              }}
                               canAfford={true}
                               discoveryUsers={discoveryUsers}
                               connectionStatus={connectionStatuses[result.user.id] || 'NOT_CONNECTED'}
@@ -891,7 +1176,7 @@ const App: React.FC = () => {
                     </div>
                   )}
                   <div className="brutal-card p-12 text-center bg-gray-50">
-                    <p className="text-sm font-bold text-gray-400 italic">Enter a search term to find people by {searchFilter}.</p>
+                    <p className="text-sm font-bold text-gray-400 italic">Enter a search term or use filters to find people.</p>
                   </div>
                 </div>
               )}
@@ -916,8 +1201,7 @@ const App: React.FC = () => {
             <GroundRules />
           )}
         </section>
-
-        </main>
+      </main>
 
       {/* Intro Modal */}
       {showIntroModal && selectedRecipient && (
@@ -1054,6 +1338,114 @@ const App: React.FC = () => {
             setEditingProfile(null);
           }}
           onClose={() => setEditingProfile(null)}
+        />
+      )}
+
+      {/* Make Intro Modal */}
+      {showMakeIntroModal && user && (
+        <MakeIntroModal
+          requester={user}
+          networkVault={networkVault}
+          discoveryUsers={discoveryUsers}
+          onMakeIntro={async (personA, personB, context, timeCommitment) => {
+            // Handle making intro - create connection request
+            try {
+              let recipientUserId: string;
+              let recipientName: string;
+              
+              // Check if Person B is a vault contact or a discovery user
+              if ('goodFor' in personB) {
+                // It's a NetworkVaultContact - need to find or create user
+                // For now, create connection using the vault contact info
+                // In production, you'd match this to an actual user or create an intro record
+                recipientName = personB.name;
+                // Create intro connection
+                const introConnection: NetworkConnection = {
+                  id: `intro_${user.id}_${Date.now()}`,
+                  userId: user.id,
+                  connectedUserId: `vault_${personB.id}`, // Temporary ID for vault contacts
+                  name: recipientName,
+                  tagline: context,
+                  lastInteraction: new Date(),
+                  privateNotes: `Intro context: "${context}"`,
+                  status: 'PENDING',
+                  timeCommitment,
+                  introducedBy: user.id,
+                  isInitiator: true
+                };
+                setConnections(prev => [...prev, introConnection]);
+                await dataService.saveConnection(user.id, introConnection);
+              } else {
+                // It's a User from discovery
+                recipientUserId = personB.id;
+                recipientName = personB.name;
+                
+                // Check availability before making intro
+                const recipientProfile = personB.profiles[0];
+                if (recipientProfile && !recipientProfile.isAvailable) {
+                  throw new Error(`${recipientName} is currently unavailable for introductions.`);
+                }
+                
+                // Create bidirectional connection request (both sides get notified)
+                const requesterConnection: NetworkConnection = {
+                  id: `conn_${user.id}_${recipientUserId}_${Date.now()}`,
+                  userId: user.id,
+                  connectedUserId: recipientUserId,
+                  name: recipientName,
+                  tagline: personB.tagline || personB.profiles[0]?.activeSignal || personB.profiles[0]?.industry || '',
+                  lastInteraction: new Date(),
+                  privateNotes: `Intro context: "${context}"\nTime commitment: ${timeCommitment}\nStatus: Waiting for ${recipientName} to accept.`,
+                  status: 'PENDING',
+                  timeCommitment,
+                  introducedBy: user.id,
+                  isInitiator: true
+                };
+                
+                // Create connection record for recipient (so they see it in their incoming requests)
+                const recipientConnection: NetworkConnection = {
+                  id: `conn_${recipientUserId}_${user.id}_${Date.now()}`,
+                  userId: recipientUserId,
+                  connectedUserId: user.id,
+                  name: user.name,
+                  tagline: user.profiles[0]?.activeSignal || user.profiles[0]?.industry || user.tagline || '',
+                  lastInteraction: new Date(),
+                  privateNotes: `Intro from ${user.name}:\nContext: "${context}"\nTime commitment: ${timeCommitment}\n\nYou can Accept, Redirect, or Decline.`,
+                  status: 'PENDING',
+                  timeCommitment,
+                  introducedBy: user.id,
+                  isInitiator: false
+                };
+                
+                // Save both connection records
+                setConnections(prev => [...prev, requesterConnection]);
+                await dataService.saveConnection(user.id, requesterConnection);
+                await dataService.saveConnection(recipientUserId, recipientConnection);
+                
+                // Notify recipient by adding to their incoming requests (refresh if recipient is viewing)
+                if (import.meta.env.VITE_SUPABASE_URL) {
+                  try {
+                    // Reload incoming requests to ensure recipient sees the new intro
+                    const updatedIncoming = await dbService.getIncomingRequests(recipientUserId);
+                    // If recipient is viewing, their requests will refresh on next load
+                  } catch (err) {
+                    console.warn('Could not refresh recipient requests:', err);
+                  }
+                }
+                
+                // Update connection status
+                setConnectionStatuses(prev => ({
+                  ...prev,
+                  [recipientUserId]: 'PENDING_SENT'
+                }));
+              }
+              
+              setShowMakeIntroModal(false);
+            } catch (error) {
+              console.error('Failed to make intro:', error);
+              throw error;
+            }
+          }}
+          onClose={() => setShowMakeIntroModal(false)}
         />
       )}
 

@@ -49,9 +49,15 @@ export const dbService = {
         .from('users')
         .select('*, profiles(*)')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
       
-      if (error) throw error;
+      if (error) {
+        // If user doesn't exist, return null instead of throwing
+        if (error.code === 'PGRST116') {
+          return null;
+        }
+        throw error;
+      }
       if (!data) return null;
       
       // Map profiles from database format to app format
@@ -103,12 +109,14 @@ export const dbService = {
           id: p.id,
           user_id: user.id,
           type: p.type,
-          bio: p.bio,
           industry: p.industry || null,
           topics: p.topics || [],
           availability_rules: p.availabilityRules || null,
+          is_available: p.isAvailable !== undefined ? p.isAvailable : true,
           location: p.location || null,
           open_to: p.openTo || [],
+          response_reliability: p.responseReliability !== undefined ? p.responseReliability : 100,
+          active_signal: p.activeSignal || null,
           photo: p.photo || null,
           is_active: p.isActive !== undefined ? p.isActive : true
         }));
@@ -405,7 +413,7 @@ export const dbService = {
                 user_id: connection.connectedUserId,
                 connected_user_id: userId,
                 name: sender.name,
-                tagline: sender.tagline || sender.profiles[0]?.bio || null,
+                tagline: sender.tagline || sender.profiles[0]?.activeSignal || sender.profiles[0]?.industry || null,
                 last_interaction: connection.lastInteraction.toISOString(),
                 private_notes: connection.privateNotes || null,
                 status: 'PENDING',
@@ -514,7 +522,7 @@ export const dbService = {
                     user_id: existingConn.connected_user_id,
                     connected_user_id: userId,
                     name: sender.name,
-                    tagline: sender.tagline || sender.profiles[0]?.bio || '',
+                    tagline: sender.tagline || sender.profiles[0]?.activeSignal || sender.profiles[0]?.industry || '',
                     last_interaction: new Date().toISOString(),
                     private_notes: '',
                     status: 'ACTIVE',
