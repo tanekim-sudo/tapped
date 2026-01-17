@@ -314,11 +314,32 @@ export const rankSearchResults = (
       // Availability Score (6% weight)
       const availabilityScore = calculateAvailabilityScore(candidateProfile);
 
-      // Total Score: 0.48 * Location + 0.46 * Relevance + 0.06 * Availability
+      // Enhanced Total Score with sophisticated weighting
+      // Location (40%) + Relevance (45%) + Availability (5%) + Quality Boost (10%)
+      
+      // Quality boost based on user stats
+      let qualityBoost = 0;
+      if (candidate.stats.followThroughRate >= 95) qualityBoost += 0.05;
+      else if (candidate.stats.followThroughRate >= 85) qualityBoost += 0.03;
+      
+      if (candidate.stats.peopleHelped >= 50) qualityBoost += 0.03;
+      else if (candidate.stats.peopleHelped >= 20) qualityBoost += 0.02;
+      
+      if (candidate.stats.conversationsCompleted >= 100) qualityBoost += 0.02;
+      
+      // Profile completeness boost
+      let completeness = 0;
+      if (candidateProfile.industry) completeness += 0.15;
+      if (candidateProfile.topics && candidateProfile.topics.length >= 3) completeness += 0.15;
+      if (candidateProfile.activeSignal) completeness += 0.10;
+      if (candidateProfile.location && candidateProfile.latitude) completeness += 0.10;
+      qualityBoost += Math.min(completeness, 0.05);
+      
       const totalScore = 
-        (0.48 * locationScore) +
-        (0.46 * relevanceScore) +
-        (0.06 * availabilityScore);
+        (0.40 * locationScore) +
+        (0.45 * relevanceScore) +
+        (0.05 * availabilityScore) +
+        Math.min(qualityBoost, 0.10); // Cap quality boost at 10%
 
       // Add location reason if significant
       const allReasons = [...reasons];

@@ -263,6 +263,109 @@ Sort by score descending. Be selective - only high-quality matches should score 
       return res.status(200).json({ result: [] });
     }
 
+    if (type === 'infer_matches') {
+      // AI-powered inference for matches when profiles are incomplete
+      const { currentUser, candidates } = params;
+      const message = await anthropic.messages.create({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 4000,
+        temperature: 0.2, // Lower temperature for more consistent ranking
+        messages: [{
+          role: 'user',
+          content: `You are an advanced networking inference engine for a high-bandwidth professional networking platform. Your task is to intelligently rank potential connections based on available signals, even when profile data is incomplete.
+
+Current User:
+- Name: ${currentUser.name}
+- Tagline: ${currentUser.tagline || 'N/A'}
+- Stats: ${JSON.stringify(currentUser.stats)}
+${currentUser.profile ? `
+- Industry: ${currentUser.profile.industry || 'N/A'}
+- Topics: ${currentUser.profile.topics?.join(', ') || 'N/A'}
+- Active Signal: ${currentUser.profile.activeSignal || 'N/A'}
+- Location: ${currentUser.profile.location || 'N/A'}
+- Open To: ${currentUser.profile.openTo?.join(', ') || 'N/A'}
+` : '- Profile: Incomplete or not available'}
+
+Candidates to Rank:
+${candidates.map((c: any) => `
+Candidate: ${c.name}
+- Tagline: ${c.tagline || 'N/A'}
+- Stats: ${JSON.stringify(c.stats)}
+${c.profile ? `
+- Industry: ${c.profile.industry || 'N/A'}
+- Topics: ${c.profile.topics?.join(', ') || 'N/A'}
+- Active Signal: ${c.profile.activeSignal || 'N/A'}
+- Location: ${c.profile.location || 'N/A'}
+- Open To: ${c.profile.openTo?.join(', ') || 'N/A'}
+- Type: ${c.profile.type || 'N/A'}
+` : '- Profile: Incomplete'}
+`).join('\n---\n')}
+
+Your sophisticated ranking should consider:
+
+1. **Quality Signals** (30% weight):
+   - Follow-through rate (reliability indicator)
+   - People helped (network value)
+   - Conversation completion rate
+
+2. **Profile Alignment** (35% weight):
+   - Industry overlap
+   - Topic/interest similarity
+   - Active signal alignment
+   - Role complementarity (Founder ↔ VC, Builder ↔ Professional, etc.)
+
+3. **Location Proximity** (15% weight):
+   - Geographic distance (if available)
+   - Regional clustering
+
+4. **Intent Match** (10% weight):
+   - Open to preferences alignment
+   - Mutual value potential
+
+5. **Profile Completeness** (10% weight):
+   - More complete profiles = higher confidence
+   - Rich signals = better matches
+
+6. **Inference from Limited Data**:
+   - Infer industry from tagline/bio if not explicit
+   - Infer interests from name/context
+   - Use network patterns to predict value
+
+Return a JSON array with sophisticated rankings:
+[
+  {
+    "userId": "user_id",
+    "score": 87,  // 0-100, be selective - only truly good matches above 70
+    "reasons": ["Reason 1", "Reason 2", "Reason 3"],  // 2-4 specific reasons
+    "confidence": 0.85  // 0-1, how confident you are in this match
+  }
+]
+
+Be sophisticated and nuanced:
+- Don't give everyone the same score
+- Create meaningful differentiation (top matches 80-95, good matches 65-79, potential 50-64, weak 30-49)
+- Consider subtle signals and patterns
+- Think about mutual value exchange potential
+- Consider network effects and connector quality
+
+Sort by score descending. Minimum score should be 25.`
+        }]
+      });
+
+      const textContent = message.content.find(block => block.type === 'text');
+      if (textContent?.type === 'text') {
+        const jsonMatch = textContent.text.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          try {
+            return res.status(200).json({ result: JSON.parse(jsonMatch[0]) });
+          } catch (e) {
+            console.error('Failed to parse inference JSON:', e);
+          }
+        }
+      }
+      return res.status(200).json({ result: [] });
+    }
+
     return res.status(400).json({ error: 'Invalid request type' });
   } catch (error: any) {
     console.error('Claude API Error:', error);
