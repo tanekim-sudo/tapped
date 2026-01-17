@@ -201,6 +201,7 @@ const App: React.FC = () => {
   }, [connections, user]);
 
   // Enhanced unified search with comprehensive ranking algorithm
+  // ALWAYS shows ranked results - never empty if users exist
   useEffect(() => {
     const performSearch = async () => {
       if (!user || !user.profiles || user.profiles.length === 0) {
@@ -212,7 +213,14 @@ const App: React.FC = () => {
       try {
         const activeProfile = user.profiles.find(p => p.id === activeProfileId) || user.profiles[0];
         
-        // Always use ranking algorithm - even with no query, rank all users
+        if (!activeProfile) {
+          setSearchResults([]);
+          setIsSearching(false);
+          return;
+        }
+        
+        // Always use ranking algorithm - even with no query, rank ALL users
+        // The algorithm will always return results if users exist
         const results = await enhancedSearch(
           searchQuery || '', 
           user.id, 
@@ -225,7 +233,7 @@ const App: React.FC = () => {
         );
         
         // Always return results - never empty if users exist
-        setSearchResults(results.length > 0 ? results : []);
+        setSearchResults(results);
       } catch (error) {
         console.error('Search error:', error);
         // On error, still try to get ranked results
