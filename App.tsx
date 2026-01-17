@@ -165,18 +165,29 @@ const App: React.FC = () => {
     loadData();
   }, []);
 
-  // Save user when it changes
+  // Save user when it changes (but not on initial load to avoid loops)
   useEffect(() => {
     const saveUser = async () => {
-      if (user) {
-        const updated = await authService.updateUser(user.id, user);
-        if (updated) {
-          await dataService.addDiscoveryUser(updated);
+      if (user && user.id) {
+        try {
+          const updated = await authService.updateUser(user.id, user);
+          if (updated) {
+            await dataService.addDiscoveryUser(updated);
+            // Only update if profiles changed (to avoid infinite loops)
+            if (JSON.stringify(updated.profiles) !== JSON.stringify(user.profiles)) {
+              setUser(updated);
+            }
+          }
+        } catch (error) {
+          console.error('Failed to save user:', error);
         }
       }
     };
-    saveUser();
-  }, [user]);
+    
+    // Debounce saves to avoid too many writes
+    const timer = setTimeout(saveUser, 1000);
+    return () => clearTimeout(timer);
+  }, [user?.profiles, user?.name, user?.tagline]);
 
   // Reload applications when active profile changes
   useEffect(() => {
@@ -399,10 +410,9 @@ const App: React.FC = () => {
                 await dataService.addDiscoveryUser(newUser);
                 setConnections([]);
                 setDiscoveryUsers([]);
-                setIncomingRequests([]);
                 setConnectionStatuses({});
                 setShowLoginModal(false);
-                // Show onboarding for new users
+                // Force onboarding for new users (they have no profiles)
                 setShowOnboarding(true);
               } catch (error: any) {
                 console.error('Sign up error:', error);
