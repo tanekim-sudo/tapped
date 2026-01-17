@@ -46,44 +46,49 @@ export const enhancedSearch = async (
       peopleHelped: u.stats.peopleHelped || 0
     }));
 
-    // Call secure backend API
-    const response = await fetch('/api/claude-proxy', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        type: 'search',
-        query,
-        usersData,
-        filters
-      })
-    });
+    // Call secure backend API (optional - falls back to basic search if unavailable)
+    try {
+      const response = await fetch('/api/claude-proxy', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'search',
+          query,
+          usersData,
+          filters
+        })
+      });
 
-    if (!response.ok) {
-      // Fallback to basic search
+      if (!response.ok) {
+        // Fallback to basic search
+        return basicSearch(query, currentUserId, filters);
+      }
+
+      const data = await response.json();
+      const matches = data.result || [];
+      
+      return matches
+        .map((match: any) => {
+          const user = allUsers.find(u => u.id === match.userId);
+          if (!user) return null;
+          
+          return {
+            user,
+            relevanceScore: match.relevanceScore || 0,
+            matchReasons: match.matchReasons || [],
+            suggestedConnectionType: match.suggestedConnectionType
+          };
+        })
+        .filter((r: any) => r !== null)
+        .sort((a: SearchResult, b: SearchResult) => b.relevanceScore - a.relevanceScore);
+    } catch (fetchError) {
+      // API not available - use basic search (silent fallback)
       return basicSearch(query, currentUserId, filters);
     }
-
-    const data = await response.json();
-    const matches = data.result || [];
-    
-    return matches
-      .map((match: any) => {
-        const user = allUsers.find(u => u.id === match.userId);
-        if (!user) return null;
-        
-        return {
-          user,
-          relevanceScore: match.relevanceScore || 0,
-          matchReasons: match.matchReasons || [],
-          suggestedConnectionType: match.suggestedConnectionType
-        };
-      })
-      .filter((r: any) => r !== null)
-      .sort((a: SearchResult, b: SearchResult) => b.relevanceScore - a.relevanceScore);
   } catch (error) {
-    console.error('Enhanced search error:', error);
+    // Outer catch for any other errors
     return basicSearch(query, currentUserId, filters);
   }
 };
@@ -107,10 +112,10 @@ const basicSearch = async (
       let score = 0;
       const reasons: string[] = [];
       
-      // Check bio
-      if (profile.bio.toLowerCase().includes(queryLower)) {
+      // Check activeSignal (replaces bio)
+      if (profile.activeSignal?.toLowerCase().includes(queryLower)) {
         score += 30;
-        reasons.push('Bio matches query');
+        reasons.push('Active signal matches query');
       }
       
       // Check industry
@@ -188,46 +193,52 @@ export const getRecommendations = async (
       peopleHelped: u.stats.peopleHelped || 0
     }));
     
-    const response = await fetch('/api/claude-proxy', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        type: 'recommendations',
-        currentUser: {
-          activeSignal: currentProfile?.activeSignal || '',
-          industry: currentProfile?.industry || '',
-          topics: currentProfile?.topics || [],
-          openTo: currentProfile?.openTo || []
+    // Try AI recommendations (optional - returns empty array if unavailable)
+    try {
+      const response = await fetch('/api/claude-proxy', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-        usersData
-      })
-    });
-    
-    if (!response.ok) {
+        body: JSON.stringify({
+          type: 'recommendations',
+          currentUser: {
+            activeSignal: currentProfile?.activeSignal || '',
+            industry: currentProfile?.industry || '',
+            topics: currentProfile?.topics || [],
+            openTo: currentProfile?.openTo || []
+          },
+          usersData
+        })
+      });
+      
+      if (!response.ok) {
+        return []; // Return empty recommendations if API unavailable
+      }
+
+      const data = await response.json();
+      const matches = data.result || [];
+      
+      return matches
+        .map((match: any) => {
+          const user = allUsers.find(u => u.id === match.userId);
+          if (!user) return null;
+          
+          return {
+            user,
+            relevanceScore: match.relevanceScore || 0,
+            matchReasons: match.matchReasons || [],
+            suggestedConnectionType: match.suggestedConnectionType
+          };
+        })
+        .filter((r: any) => r !== null)
+        .sort((a: SearchResult, b: SearchResult) => b.relevanceScore - a.relevanceScore);
+    } catch (fetchError) {
+      // API not available - return empty array (silent fallback)
       return [];
     }
-
-    const data = await response.json();
-    const matches = data.result || [];
-    
-    return matches
-      .map((match: any) => {
-        const user = allUsers.find(u => u.id === match.userId);
-        if (!user) return null;
-        
-        return {
-          user,
-          relevanceScore: match.relevanceScore || 0,
-          matchReasons: match.matchReasons || [],
-          suggestedConnectionType: match.suggestedConnectionType
-        };
-      })
-      .filter((r: any) => r !== null)
-      .sort((a: SearchResult, b: SearchResult) => b.relevanceScore - a.relevanceScore);
   } catch (error) {
-    console.error('Recommendations error:', error);
+    // Outer catch for any other errors
     return [];
   }
 };
@@ -254,8 +265,10 @@ export const getSearchSuggestions = async (
       });
     });
     
-    const response = await fetch('/api/claude-proxy', {
-      method: 'POST',
+    // Try AI suggestions (optional - returns empty array if unavailable)
+    try {
+      const response = await fetch('/api/claude-proxy', {
+        method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
@@ -271,10 +284,14 @@ export const getSearchSuggestions = async (
       return [];
     }
 
-    const data = await response.json();
-    return data.result || [];
+      const data = await response.json();
+      return data.result || [];
+    } catch (fetchError) {
+      // API not available - return empty array (silent fallback)
+      return [];
+    }
   } catch (error) {
-    console.error('Search suggestions error:', error);
+    // Outer catch for any other errors
     return [];
   }
 };

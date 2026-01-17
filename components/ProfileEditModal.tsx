@@ -8,15 +8,23 @@ interface ProfileEditModalProps {
 }
 
 const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ profile, onSave, onClose }) => {
-  const [bio, setBio] = useState(profile.bio);
+  const [bio, setBio] = useState(profile.bio || '');
   const [industry, setIndustry] = useState(profile.industry || '');
   const [topics, setTopics] = useState<string[]>(profile.topics || []);
   const [topicInput, setTopicInput] = useState('');
-  const [meetingTypes, setMeetingTypes] = useState(profile.availabilityRules);
+  const [meetingTypes, setMeetingTypes] = useState(profile.availabilityRules || '');
   const [location, setLocation] = useState(profile.location || '');
-  const [openTo, setOpenTo] = useState<string[]>(profile.openTo);
+  const [openTo, setOpenTo] = useState<string[]>(profile.openTo || []);
   const [openToInput, setOpenToInput] = useState('');
   const [photo, setPhoto] = useState<string>(profile.photo || '');
+  const [isAvailable, setIsAvailable] = useState(profile.isAvailable !== false);
+  const [responseReliability, setResponseReliability] = useState(profile.responseReliability || 100);
+  const [activeSignal, setActiveSignal] = useState(profile.activeSignal || '');
+  // Connection preferences
+  const [connectionLimit, setConnectionLimit] = useState(profile.connectionLimit || 0);
+  const [weeklyCredits, setWeeklyCredits] = useState(profile.weeklyCredits || profile.connectionLimit || 0);
+  const [qualificationQuestions, setQualificationQuestions] = useState<string[]>(profile.qualificationQuestions || []);
+  const [questionInput, setQuestionInput] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -52,17 +60,32 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ profile, onSave, on
     setTopics(topics.filter(t => t !== topic));
   };
 
+  const handleAddQuestion = () => {
+    if (questionInput.trim() && qualificationQuestions.length < 3 && !qualificationQuestions.includes(questionInput.trim())) {
+      setQualificationQuestions([...qualificationQuestions, questionInput.trim()]);
+      setQuestionInput('');
+    }
+  };
+
+  const handleRemoveQuestion = (question: string) => {
+    setQualificationQuestions(qualificationQuestions.filter(q => q !== question));
+  };
+
   const handleSave = () => {
     onSave({
+      bio: bio.trim(),
       industry: industry.trim(),
       topics,
-      availabilityRules: availabilityRules.trim(),
+      availabilityRules: meetingTypes.trim(),
       isAvailable,
       location: location.trim(),
       openTo,
       responseReliability,
       activeSignal: activeSignal.trim() || undefined,
-      photo: photo || undefined
+      photo: photo || undefined,
+      connectionLimit: connectionLimit > 0 ? connectionLimit : undefined,
+      weeklyCredits: weeklyCredits > 0 ? weeklyCredits : undefined,
+      qualificationQuestions: qualificationQuestions.length > 0 ? qualificationQuestions : undefined
     });
     onClose();
   };
@@ -185,6 +208,93 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ profile, onSave, on
                 ))}
               </div>
             )}
+          </div>
+
+          {/* Connection Preferences */}
+          <div className="border-t border-gray-200 pt-6">
+            <h4 className="text-sm font-black uppercase mb-4">Connection Filtering</h4>
+            
+            {/* Connection Limit */}
+            <div className="mb-4">
+              <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 block">
+                Max Connections Per Week
+              </label>
+              <input
+                type="number"
+                min="0"
+                max="20"
+                value={connectionLimit}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setConnectionLimit(val);
+                  if (weeklyCredits === 0 || weeklyCredits === connectionLimit) {
+                    setWeeklyCredits(val);
+                  }
+                }}
+                placeholder="e.g., 2"
+                className="w-full p-3 border border-gray-200 focus:border-[#ff4d00] outline-none"
+              />
+              <p className="text-[8px] text-gray-400 mt-1">How many new connections you want per week</p>
+            </div>
+
+            {/* Weekly Credits */}
+            <div className="mb-4">
+              <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 block">
+                Weekly Credits to Connect
+              </label>
+              <input
+                type="number"
+                min="0"
+                max="20"
+                value={weeklyCredits}
+                onChange={(e) => setWeeklyCredits(Number(e.target.value))}
+                placeholder="e.g., 2"
+                className="w-full p-3 border border-gray-200 focus:border-[#ff4d00] outline-none"
+              />
+              <p className="text-[8px] text-gray-400 mt-1">Credits you get to connect with others (defaults to connection limit)</p>
+            </div>
+
+            {/* Qualification Questions */}
+            <div>
+              <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 block">
+                Qualification Questions (Max 3)
+              </label>
+              <div className="flex gap-2 mb-3">
+                <input
+                  type="text"
+                  value={questionInput}
+                  onChange={(e) => setQuestionInput(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleAddQuestion()}
+                  placeholder="e.g., What's your main goal for this connection?"
+                  disabled={qualificationQuestions.length >= 3}
+                  className="flex-1 p-3 border border-gray-200 focus:border-[#ff4d00] outline-none disabled:opacity-50"
+                />
+                <button
+                  onClick={handleAddQuestion}
+                  disabled={qualificationQuestions.length >= 3 || !questionInput.trim()}
+                  className="btn-brutal !bg-black !text-white px-4 disabled:opacity-50"
+                >
+                  Add
+                </button>
+              </div>
+              {qualificationQuestions.length > 0 && (
+                <div className="space-y-2">
+                  {qualificationQuestions.map((q, idx) => (
+                    <div key={idx} className="flex items-start gap-2 p-3 bg-gray-50 border border-gray-200">
+                      <span className="text-xs font-bold text-gray-400 flex-shrink-0">{idx + 1}.</span>
+                      <span className="text-sm flex-grow">{q}</span>
+                      <button
+                        onClick={() => handleRemoveQuestion(q)}
+                        className="text-red-400 hover:text-red-600 flex-shrink-0"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-[8px] text-gray-400 mt-1">Applicants will answer these when requesting to connect. AI will rank them based on answers.</p>
+            </div>
           </div>
 
           {/* Response Reliability */}

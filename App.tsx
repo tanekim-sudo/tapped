@@ -11,9 +11,11 @@ import ProfileEditModal from './components/ProfileEditModal';
 import DatabaseStatus from './components/DatabaseStatus';
 import MessagesView from './components/MessagesView';
 import NetworkVault from './components/NetworkVault';
-import MakeIntroModal from './components/MakeIntroModal';
-import { getIntroSuggestion } from './services/claudeService';
+import RankedApplicantsView from './components/RankedApplicantsView';
+import ConnectionApplicationModal from './components/ConnectionApplicationModal';
 import { enhancedSearch, getRecommendations, getSearchSuggestions } from './services/enhancedSearchService';
+import { applicationService } from './services/applicationService';
+import { ConnectionApplication } from './types';
 import { authService } from './services/authService';
 import { dataService } from './services/dataService';
 import { dbService } from './services/supabaseService';
@@ -36,28 +38,23 @@ const App: React.FC = () => {
   const [networkVault, setNetworkVault] = useState<NetworkVaultContact[]>([]);
   const [activeProfileId, setActiveProfileId] = useState<string>('');
   const [connections, setConnections] = useState<NetworkConnection[]>([]);
-  const [incomingRequests, setIncomingRequests] = useState<NetworkConnection[]>([]);
   const [discoveryUsers, setDiscoveryUsers] = useState<User[]>([]);
-  const [connectionStatuses, setConnectionStatuses] = useState<Record<string, 'CONNECTED' | 'PENDING_SENT' | 'PENDING_RECEIVED' | 'NOT_CONNECTED'>>({});
+  const [connectionStatuses, setConnectionStatuses] = useState<Record<string, 'CONNECTED' | 'NOT_CONNECTED'>>({});
   const [showLoginModal, setShowLoginModal] = useState(false);
   
-  const [showIntroModal, setShowIntroModal] = useState(false);
-  const [selectedRecipient, setSelectedRecipient] = useState<{ user: User, profile?: ContextProfile } | null>(null);
-  const [introText, setIntroText] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [timeCommitment, setTimeCommitment] = useState<'10min' | '15min' | 'async' | 'custom'>('15min');
-  const [showDeclineModal, setShowDeclineModal] = useState(false);
-  const [decliningConnection, setDecliningConnection] = useState<NetworkConnection | null>(null);
   const [selectedChat, setSelectedChat] = useState<NetworkConnection | null>(null);
   const [chatMessage, setChatMessage] = useState('');
-  const [showMakeIntroModal, setShowMakeIntroModal] = useState(false);
   const [boardFilter, setBoardFilter] = useState('');
   const [networkFilter, setNetworkFilter] = useState('');
-  const [networkStatusFilter, setNetworkStatusFilter] = useState<'All Syncs' | 'Pending' | 'Archived'>('All Syncs');
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showWalkthrough, setShowWalkthrough] = useState(false);
   const [editingProfile, setEditingProfile] = useState<ContextProfile | null>(null);
+  // Connection application system
+  const [connectionApplications, setConnectionApplications] = useState<ConnectionApplication[]>([]);
+  const [showApplicationModal, setShowApplicationModal] = useState(false);
+  const [applicationRecipient, setApplicationRecipient] = useState<{ user: User; profile: ContextProfile } | null>(null);
+  const [weeklyCreditsUsed, setWeeklyCreditsUsed] = useState<number>(0);
 
   // Initialize user and data on mount
   useEffect(() => {
@@ -89,22 +86,33 @@ const App: React.FC = () => {
             console.warn('Failed to load network vault:', err);
           }
           
-          // Load incoming connection requests (non-blocking)
+          // Load connection applications for active profile
+          if (currentUser.profiles.length > 0) {
+            const activeProfileIdToUse = activeProfileId || currentUser.profiles[0].id;
+            const activeProfile = currentUser.profiles.find(p => p.id === activeProfileIdToUse) || currentUser.profiles[0];
+            if (activeProfile) {
+              const applications = applicationService.getApplicationsForProfile(currentUser.id, activeProfile.id);
+              setConnectionApplications(applications);
+              
+              // Load weekly credits used
+              const creditsUsed = applicationService.getWeeklyCreditsUsed(currentUser.id);
+              setWeeklyCreditsUsed(creditsUsed);
+            }
+          }
+          
+          // Load connection statuses for all discovery users (non-blocking)
           if (import.meta.env.VITE_SUPABASE_URL) {
             try {
-              const incoming = await dbService.getIncomingRequests(currentUser.id);
-              setIncomingRequests(incoming);
-              
-              // Load connection statuses for all discovery users (non-blocking)
-              // Do this in parallel with error handling to avoid blocking
-              const statuses: Record<string, 'CONNECTED' | 'PENDING_SENT' | 'PENDING_RECEIVED' | 'NOT_CONNECTED'> = {};
+              const statuses: Record<string, 'CONNECTED' | 'NOT_CONNECTED'> = {};
               const usersToCheck = discovery.slice(0, 20);
               await Promise.allSettled(
                 usersToCheck.map(async (otherUser) => {
                   try {
                     const status = await dbService.getConnectionStatus(currentUser.id, otherUser.id);
-                    if (status) {
-                      statuses[otherUser.id] = status;
+                    if (status === 'CONNECTED' || status === 'ACTIVE') {
+                      statuses[otherUser.id] = 'CONNECTED';
+                    } else {
+                      statuses[otherUser.id] = 'NOT_CONNECTED';
                     }
                   } catch (err) {
                     // Silently fail - don't block UI
@@ -114,8 +122,7 @@ const App: React.FC = () => {
               );
               setConnectionStatuses(statuses);
             } catch (err) {
-              console.warn('Failed to load incoming requests:', err);
-              setIncomingRequests([]);
+              console.warn('Failed to load connection statuses:', err);
             }
           }
 
@@ -167,6 +174,19 @@ const App: React.FC = () => {
     };
     saveUser();
   }, [user]);
+
+  // Reload applications when active profile changes
+  useEffect(() => {
+    if (user && activeProfileId) {
+      const activeProfile = user.profiles.find(p => p.id === activeProfileId);
+      if (activeProfile) {
+        const applications = applicationService.getApplicationsForProfile(user.id, activeProfile.id);
+        setConnectionApplications(applications);
+        const creditsUsed = applicationService.getWeeklyCreditsUsed(user.id);
+        setWeeklyCreditsUsed(creditsUsed);
+      }
+    }
+  }, [activeProfileId, user]);
 
   // Save connections when they change
   useEffect(() => {
@@ -282,31 +302,28 @@ const App: React.FC = () => {
                     
                     // Load incoming requests and connection statuses (non-blocking)
                     if (import.meta.env.VITE_SUPABASE_URL) {
-                      try {
-                        const incoming = await dbService.getIncomingRequests(signedInUser.id);
-                        setIncomingRequests(incoming);
-                        
                       // Load connection statuses for first 20 users only (to avoid blocking)
-                      // Do this in parallel with error handling
-                      const statuses: Record<string, 'CONNECTED' | 'PENDING_SENT' | 'PENDING_RECEIVED' | 'NOT_CONNECTED'> = {};
-                      const usersToCheck = discovery.slice(0, 20);
-                      await Promise.allSettled(
-                        usersToCheck.map(async (otherUser) => {
-                          try {
-                            const status = await dbService.getConnectionStatus(signedInUser.id, otherUser.id);
-                            if (status) {
-                              statuses[otherUser.id] = status;
+                      try {
+                        const statuses: Record<string, 'CONNECTED' | 'NOT_CONNECTED'> = {};
+                        const usersToCheck = discovery.slice(0, 20);
+                        await Promise.allSettled(
+                          usersToCheck.map(async (otherUser) => {
+                            try {
+                              const status = await dbService.getConnectionStatus(signedInUser.id, otherUser.id);
+                              if (status === 'CONNECTED' || status === 'ACTIVE') {
+                                statuses[otherUser.id] = 'CONNECTED';
+                              } else {
+                                statuses[otherUser.id] = 'NOT_CONNECTED';
+                              }
+                            } catch (err) {
+                              // Silently fail - don't block UI
+                              console.warn('Failed to get connection status for', otherUser.id, err);
                             }
-                          } catch (err) {
-                            // Silently fail - don't block UI
-                            console.warn('Failed to get connection status for', otherUser.id, err);
-                          }
-                        })
-                      );
-                      setConnectionStatuses(statuses);
+                          })
+                        );
+                        setConnectionStatuses(statuses);
                       } catch (err) {
-                        console.warn('Failed to load connection data:', err);
-                        setIncomingRequests([]);
+                        console.warn('Failed to load connection statuses:', err);
                         setConnectionStatuses({});
                       }
                     }
@@ -364,26 +381,83 @@ const App: React.FC = () => {
     u.profiles[0]?.type.toLowerCase().includes(boardFilter.toLowerCase())
   );
   
-  // Filter connections (only show ACTIVE connections, not pending/declined)
-  const filteredConnections = connections.filter(c => {
-    const matchesStatus = networkStatusFilter === 'All Syncs' || 
-      (networkStatusFilter === 'Pending' && c.status === 'PENDING') ||
-      (networkStatusFilter === 'Archived' && (c.status === 'CLOSED' || c.status === 'DECLINED'));
-    const matchesFilter = !networkFilter || 
+  // Filter connections (only show ACTIVE connections)
+  const filteredConnections = connections
+    .filter(c => c.status === 'ACTIVE')
+    .filter(c => !networkFilter || 
       c.name.toLowerCase().includes(networkFilter.toLowerCase()) ||
       c.tagline.toLowerCase().includes(networkFilter.toLowerCase()) ||
-      c.privateNotes.toLowerCase().includes(networkFilter.toLowerCase());
-    return matchesStatus && matchesFilter;
-  });
+      c.privateNotes.toLowerCase().includes(networkFilter.toLowerCase()));
 
-  const handleConnectRequest = (target: any) => {
-    if (!activeProfile) {
+  const handleConnectRequest = async (target: any) => {
+    if (!activeProfile || !user) {
       alert('Please select a profile first to make connections.');
       return;
     }
-    setSelectedRecipient({ ...target, profile: activeProfile });
-    setShowIntroModal(true);
-    setIntroText('');
+    
+    // Check if recipient has qualification questions set
+    const recipientProfile = target.profile || target.user.profiles[0];
+    if (recipientProfile?.qualificationQuestions && recipientProfile.qualificationQuestions.length > 0) {
+      // Show application modal instead of direct connection
+      setApplicationRecipient({ user: target.user, profile: recipientProfile });
+      setShowApplicationModal(true);
+      return;
+    }
+    
+    // Check weekly credits if recipient has connection limit
+    if (recipientProfile?.connectionLimit && recipientProfile.connectionLimit > 0) {
+      const remainingCredits = applicationService.getRemainingCredits(user.id, activeProfile);
+      if (remainingCredits <= 0) {
+        alert(`You've used all your weekly connection credits (${activeProfile.weeklyCredits || activeProfile.connectionLimit}). Credits reset weekly.`);
+        return;
+      }
+    }
+    
+    // Create ACTIVE connection immediately (no qualification questions)
+    const existingConnection = connections.find(c => {
+      if (c.connectedUserId) {
+        return c.connectedUserId === target.user.id;
+      }
+      return c.userId === target.user.id;
+    });
+    
+    if (existingConnection) {
+      // Already connected, open chat
+      setSelectedChat(existingConnection);
+      setActiveTab('MESSAGES');
+      return;
+    }
+    
+    // Create new ACTIVE connection
+    const newConnection: NetworkConnection = {
+      id: `conn_${user.id}_${target.user.id}_${Date.now()}`,
+      userId: user.id,
+      connectedUserId: target.user.id,
+      name: target.user.name,
+      tagline: target.user.tagline || target.user.profiles[0]?.activeSignal || target.user.profiles[0]?.industry || '',
+      lastInteraction: new Date(),
+      privateNotes: `Connected via ${activeProfile?.type || 'default'} profile`,
+      status: 'ACTIVE',
+      isInitiator: true,
+      profileId: activeProfileId || user.profiles[0]?.id
+    };
+    
+    setConnections(prev => [...prev, newConnection]);
+    await dataService.saveConnection(user.id, newConnection);
+    setConnectionStatuses(prev => ({
+      ...prev,
+      [target.user.id]: 'CONNECTED'
+    }));
+    
+    // Track credit usage
+    if (activeProfile.weeklyCredits || activeProfile.connectionLimit) {
+      applicationService.useCredit(user.id);
+      setWeeklyCreditsUsed(prev => prev + 1);
+    }
+    
+    // Open chat with new connection
+    setSelectedChat(newConnection);
+    setActiveTab('MESSAGES');
   };
 
   const handleOpenChat = (target: any) => {
@@ -403,116 +477,6 @@ const App: React.FC = () => {
   };
 
 
-  const generateAIIntro = async () => {
-    if (!selectedRecipient || !activeProfile) return;
-    setIsGenerating(true);
-    try {
-      const suggestion = await getIntroSuggestion(
-        activeProfile.activeSignal || activeProfile.industry || '',
-        selectedRecipient.profile?.activeSignal || selectedRecipient.profile?.industry || '',
-        'Networking'
-      );
-      setIntroText(suggestion || '');
-    } catch (error) {
-      console.error('Failed to generate intro:', error);
-      setIntroText('Looking to connect and network.');
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const handleSendIntro = async () => {
-    if (!selectedRecipient || !introText.trim() || !user) return;
-    
-    // Check if connection already exists
-    const existingConnection = connections.find(c => {
-      if (c.connectedUserId) {
-        return c.connectedUserId === selectedRecipient.user.id;
-      }
-      // Backward compatibility - old connections might have userId pointing to the other user
-      return c.userId === selectedRecipient.user.id;
-    });
-    const connectionStatus = connectionStatuses[selectedRecipient.user.id] || 'NOT_CONNECTED';
-    
-    // If already connected, just update notes
-    if (connectionStatus === 'CONNECTED' && existingConnection) {
-      try {
-        const updated = {
-          ...existingConnection,
-          lastInteraction: new Date(),
-          privateNotes: existingConnection.privateNotes + `\n\nNew message: "${introText}"`
-        };
-        await updateConnection(existingConnection.id, updated);
-        await dataService.saveConnection(user.id, updated);
-      } catch (error) {
-        console.error('Failed to update connection:', error);
-      }
-      setShowIntroModal(false);
-      setSelectedRecipient(null);
-      setIntroText('');
-      setTimeCommitment('15min');
-      return;
-    }
-    
-    // Create new connection request
-    if (!existingConnection || connectionStatus === 'NOT_CONNECTED') {
-      const newConnection: NetworkConnection = {
-        id: `conn_${user.id}_${selectedRecipient.user.id}_${Date.now()}`,
-        userId: user.id,
-        connectedUserId: selectedRecipient.user.id,
-        name: selectedRecipient.user.name,
-        tagline: selectedRecipient.user.tagline || selectedRecipient.user.profiles[0]?.activeSignal || selectedRecipient.user.profiles[0]?.industry || '',
-        lastInteraction: new Date(),
-        privateNotes: `Initial intro: "${introText}"\nMade using ${activeProfile?.type || 'default'} profile`,
-        status: 'PENDING',
-        timeCommitment,
-        introducedBy: user.id,
-        isInitiator: true,
-        profileId: activeProfileId || user.profiles[0]?.id
-      };
-      
-      // Update recipient's stats to track introduction (non-blocking)
-      if (selectedRecipient.user.stats.introducedBy !== user.id) {
-        try {
-          const updatedRecipient = {
-            ...selectedRecipient.user,
-            stats: {
-              ...selectedRecipient.user.stats,
-              introducedBy: user.id
-            }
-          };
-          await authService.updateUser(selectedRecipient.user.id, updatedRecipient);
-          await dataService.addDiscoveryUser(updatedRecipient);
-        } catch (error) {
-          console.warn('Failed to update recipient stats:', error);
-          // Continue even if this fails
-        }
-      }
-      
-      setConnections(prev => [...prev, newConnection]);
-      await dataService.saveConnection(user.id, newConnection);
-      
-      // Update connection status
-      setConnectionStatuses(prev => ({
-        ...prev,
-        [selectedRecipient.user.id]: 'PENDING_SENT'
-      }));
-    }
-    
-    setShowIntroModal(false);
-    setSelectedRecipient(null);
-    setIntroText('');
-    setTimeCommitment('15min');
-  };
-
-  const handleQuickDecline = async (connectionId: string, reason: string) => {
-    await updateConnection(connectionId, { 
-      status: 'DECLINED',
-      privateNotes: (connections.find(c => c.id === connectionId)?.privateNotes || '') + `\n\nDeclined: ${reason}`
-    });
-    setShowDeclineModal(false);
-    setDecliningConnection(null);
-  };
 
   const updateConnection = async (id: string, updates: Partial<NetworkConnection>) => {
     if (!user) return;
@@ -641,13 +605,27 @@ const App: React.FC = () => {
       {/* Navigation: Compressed & Professional */}
       <nav id="nav-main" className="w-full lg:w-60 border-b lg:border-b-0 lg:border-r border-gray-100 p-8 lg:p-8 lg:sticky lg:top-0 lg:h-screen flex flex-col z-40 bg-white">
         <div className="mb-12">
-          <h1 className="text-xl font-black italic tracking-tighter uppercase leading-none">Tapped.</h1>
+          <button 
+            onClick={() => setActiveTab('SEARCH')}
+            className="text-xl font-black italic tracking-tighter uppercase leading-none hover:text-[#ff4d00] transition-colors cursor-pointer"
+          >
+            Tapped.
+          </button>
+          {user && activeProfile && (activeProfile.weeklyCredits || activeProfile.connectionLimit) && (
+            <div className="mt-4 p-3 bg-gray-50 border border-gray-200">
+              <p className="text-[8px] font-black uppercase text-gray-400 mb-1">Weekly Credits</p>
+              <p className="text-lg font-black text-[#ff4d00]">
+                {applicationService.getRemainingCredits(user.id, activeProfile)}/{activeProfile.weeklyCredits || activeProfile.connectionLimit}
+              </p>
+              <p className="text-[7px] text-gray-400 mt-1">Credits reset weekly</p>
+            </div>
+          )}
         </div>
 
         <div id="nav-tabs" className="flex lg:flex-col gap-4 lg:gap-6 flex-wrap lg:flex-grow">
           {[
             { id: 'SEARCH', label: 'Search' },
-            { id: 'MESSAGES', label: 'Messages', badge: incomingRequests.length > 0 ? incomingRequests.length : undefined },
+            { id: 'MESSAGES', label: 'Messages' },
             { id: 'NOTES', label: 'Notes' },
           ].map((tab) => (
             <button
@@ -800,34 +778,15 @@ const App: React.FC = () => {
           {activeTab === 'MESSAGES' && user && (
             <MessagesView
               connections={connections || []}
-              incomingRequests={incomingRequests || []}
               currentUserId={user.id}
               discoveryUsers={discoveryUsers || []}
               currentUser={user}
               activeProfileId={activeProfileId}
               onSelectChat={setSelectedChat}
-              onAcceptRequest={async (requestId, userId) => {
-                await updateConnection(requestId, { status: 'ACTIVE', lastInteraction: new Date() });
-                setIncomingRequests(prev => prev.filter(r => r.id !== requestId));
-                const refreshed = await dataService.getConnections(user.id);
-                setConnections(refreshed);
-                setConnectionStatuses(prev => ({ ...prev, [userId]: 'CONNECTED' }));
-                // Update selected chat if it was the accepted request
-                if (selectedChat?.id === requestId) {
-                  const updated = refreshed.find(c => c.id === requestId);
-                  if (updated) setSelectedChat(updated);
-                }
-              }}
-              onDeclineRequest={async (requestId, userId) => {
-                await updateConnection(requestId, { status: 'DECLINED' });
-                setIncomingRequests(prev => prev.filter(r => r.id !== requestId));
-                setConnectionStatuses(prev => ({ ...prev, [userId]: 'NOT_CONNECTED' }));
-                if (selectedChat?.id === requestId) {
-                  setSelectedChat(null);
-                }
-              }}
               selectedChat={selectedChat}
               onSendMessage={async (message: string) => {
+                // Legacy callback - ChatView now uses chatService directly
+                // This is kept for backward compatibility
                 if (!selectedChat || !user) return;
                 try {
                   const updated = {
@@ -863,84 +822,99 @@ const App: React.FC = () => {
 
           {activeTab === 'NOTES' && user && (
             <div className="space-y-8">
-              {/* Incoming Connection Requests */}
-              {incomingRequests.length > 0 && (
+              {/* Connection Applications (if profile has qualification questions) */}
+              {activeProfile && activeProfile.qualificationQuestions && activeProfile.qualificationQuestions.length > 0 && connectionApplications.length > 0 && (
                 <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-black uppercase">
-                      Connection Requests ({incomingRequests.length})
-                    </h3>
+                  <div className="mb-4 p-4 bg-[#ff4d00]/5 border-l-4 border-[#ff4d00]">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-lg font-black uppercase mb-1">
+                          Connection Applications
+                        </h3>
+                        <p className="text-sm text-gray-600">
+                          AI-ranked applicants based on your qualification questions
+                        </p>
+                      </div>
+                      {activeProfile.connectionLimit && activeProfile.connectionLimit > 0 && (
+                        <div className="text-right">
+                          <p className="text-xs font-black uppercase text-gray-400">Weekly Credits</p>
+                          <p className="text-2xl font-black text-[#ff4d00]">
+                            {applicationService.getRemainingCredits(user.id, activeProfile)}/{activeProfile.connectionLimit}
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="space-y-3">
-                    {incomingRequests.map(request => {
-                      const requestUser = discoveryUsers.find(u => u.id === request.userId) || {
-                        id: request.userId,
-                        name: request.name,
-                        profiles: [{
-                          id: '',
-                          type: ContextType.FOUNDER,
-                          industry: '',
-                          topics: [],
-                          availabilityRules: '',
-                          isAvailable: true,
-                          location: '',
-                          openTo: [],
-                          responseReliability: 100,
-                          isActive: true
-                        }],
-                        stats: { conversationsCompleted: 0, peopleHelped: 0, followThroughRate: 100 },
-                        avatar: '',
-                        tagline: request.tagline
+                  <RankedApplicantsView
+                    applications={connectionApplications}
+                    applicants={discoveryUsers.filter(u => 
+                      connectionApplications.some(app => app.applicantId === u.id)
+                    )}
+                    recipientProfile={activeProfile}
+                    recipientUser={user}
+                    remainingCredits={applicationService.getRemainingCredits(user.id, activeProfile)}
+                    onAccept={async (applicationId, applicantUserId) => {
+                      const application = connectionApplications.find(app => app.id === applicationId);
+                      if (!application) return;
+                      
+                      // Create ACTIVE connection
+                      const applicant = discoveryUsers.find(u => u.id === applicantUserId);
+                      if (!applicant) return;
+                      
+                      const newConnection: NetworkConnection = {
+                        id: `conn_${user.id}_${applicantUserId}_${Date.now()}`,
+                        userId: user.id,
+                        connectedUserId: applicantUserId,
+                        name: applicant.name,
+                        tagline: applicant.tagline || applicant.profiles[0]?.activeSignal || applicant.profiles[0]?.industry || '',
+                        lastInteraction: new Date(),
+                        privateNotes: `Accepted from application. Answers: ${application.answers.join(' | ')}`,
+                        status: 'ACTIVE',
+                        isInitiator: false,
+                        profileId: activeProfileId,
+                        applicationId: application.id
                       };
-                      return (
-                        <ProfileCard
-                          key={request.id}
-                          user={requestUser}
-                          onConnect={() => {}}
-                          discoveryUsers={discoveryUsers}
-                          connectionStatus="PENDING_RECEIVED"
-                          onAcceptRequest={async () => {
-                            await updateConnection(request.id, { status: 'ACTIVE', lastInteraction: new Date() });
-                            setIncomingRequests(prev => prev.filter(r => r.id !== request.id));
-                            const refreshed = await dataService.getConnections(user.id);
-                            setConnections(refreshed);
-                            setConnectionStatuses(prev => ({ ...prev, [request.userId]: 'CONNECTED' }));
-                          }}
-                          onDeclineRequest={async () => {
-                            await updateConnection(request.id, { status: 'DECLINED' });
-                            setIncomingRequests(prev => prev.filter(r => r.id !== request.id));
-                            setConnectionStatuses(prev => ({ ...prev, [request.userId]: 'NOT_CONNECTED' }));
-                          }}
-                        />
-                      );
-                    })}
-                  </div>
+                      
+                      // Update application status
+                      applicationService.updateApplication(applicationId, { status: 'ACCEPTED' });
+                      
+                      // Remove from applications list
+                      setConnectionApplications(prev => prev.filter(app => app.id !== applicationId));
+                      
+                      // Add to connections
+                      setConnections(prev => [...prev, newConnection]);
+                      await dataService.saveConnection(user.id, newConnection);
+                      
+                      // Track credit usage
+                      if (activeProfile.connectionLimit && activeProfile.connectionLimit > 0) {
+                        applicationService.useCredit(user.id);
+                        setWeeklyCreditsUsed(prev => prev + 1);
+                      }
+                      
+                      setConnectionStatuses(prev => ({ ...prev, [applicantUserId]: 'CONNECTED' }));
+                    }}
+                    onReject={async (applicationId, applicantUserId) => {
+                      applicationService.updateApplication(applicationId, { status: 'REJECTED' });
+                      setConnectionApplications(prev => prev.filter(app => app.id !== applicationId));
+                      setConnectionStatuses(prev => ({ ...prev, [applicantUserId]: 'NOT_CONNECTED' }));
+                    }}
+                  />
                 </div>
               )}
+
+              {/* Regular Incoming Requests (no qualification questions) */}
 
               {/* Your Connections */}
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-black uppercase">Your Connections</h3>
-                  <button
-                    onClick={() => setShowMakeIntroModal(true)}
-                    className="btn-brutal !bg-[#ff4d00] !text-white text-xs px-4 py-2"
-                  >
-                    Make Intro
-                  </button>
                 </div>
                 <NetworkView
                   connections={filteredConnections}
                   onUpdate={updateConnection}
                   filter={networkFilter}
                   onFilterChange={setNetworkFilter}
-                  statusFilter={networkStatusFilter}
-                  onStatusFilterChange={setNetworkStatusFilter}
                   onTerminate={handleTerminateConnection}
-                  onQuickDecline={(conn) => {
-                    setDecliningConnection(conn);
-                    setShowDeclineModal(true);
-                  }}
                 />
               </div>
 
@@ -970,8 +944,7 @@ const App: React.FC = () => {
                     localStorage.setItem(`network_vault_${user.id}`, JSON.stringify(filtered));
                   }}
                   onSelectForIntro={(contact) => {
-                    // This will be handled by Make Intro modal which accepts vault contacts
-                    setShowMakeIntroModal(true);
+                    // Feature removed - vault contacts are now part of unified network
                   }}
                 />
               </div>
@@ -1007,9 +980,7 @@ const App: React.FC = () => {
                         <button
                           key={`${contact.id}-${signalUser.id}`}
                           onClick={() => {
-                            setSelectedRecipient({ user: signalUser });
-                            setShowMakeIntroModal(true);
-                            // Pre-select this vault contact in the modal
+                            handleConnectRequest({ user: signalUser });
                           }}
                           className="text-[8px] font-bold uppercase bg-white border-2 border-[#ff4d00] px-2 py-1 hover:bg-[#ff4d00] hover:text-white transition-colors"
                           title={`Connect ${signalUser.name} via ${contact.name}`}
@@ -1143,24 +1114,6 @@ const App: React.FC = () => {
                           discoveryUsers={discoveryUsers}
                           connectionStatus={connectionStatuses[result.user.id] || 'NOT_CONNECTED'}
                           activeProfile={activeProfile}
-                          onAcceptRequest={async (userId) => {
-                            const request = incomingRequests.find(r => r.userId === userId);
-                            if (request) {
-                              await updateConnection(request.id, { status: 'ACTIVE', lastInteraction: new Date() });
-                              setIncomingRequests(prev => prev.filter(r => r.id !== request.id));
-                              setConnectionStatuses(prev => ({ ...prev, [userId]: 'CONNECTED' }));
-                              const refreshed = await dataService.getConnections(user!.id);
-                              setConnections(refreshed);
-                            }
-                          }}
-                          onDeclineRequest={async (userId) => {
-                            const request = incomingRequests.find(r => r.userId === userId);
-                            if (request) {
-                              await updateConnection(request.id, { status: 'DECLINED' });
-                              setIncomingRequests(prev => prev.filter(r => r.id !== request.id));
-                              setConnectionStatuses(prev => ({ ...prev, [userId]: 'NOT_CONNECTED' }));
-                            }
-                          }}
                         />
                         {result.matchReasons.length > 0 && (
                           <div className="mt-2 p-2 bg-gray-50 border-l-2 border-[#ff4d00] text-xs">
@@ -1207,24 +1160,6 @@ const App: React.FC = () => {
                               discoveryUsers={discoveryUsers}
                               connectionStatus={connectionStatuses[result.user.id] || 'NOT_CONNECTED'}
                               activeProfile={activeProfile}
-                              onAcceptRequest={async (userId) => {
-                                const request = incomingRequests.find(r => r.userId === userId);
-                                if (request) {
-                                  await updateConnection(request.id, { status: 'ACTIVE', lastInteraction: new Date() });
-                                  setIncomingRequests(prev => prev.filter(r => r.id !== request.id));
-                                  setConnectionStatuses(prev => ({ ...prev, [userId]: 'CONNECTED' }));
-                                  const refreshed = await dataService.getConnections(user!.id);
-                                  setConnections(refreshed);
-                                }
-                              }}
-                              onDeclineRequest={async (userId) => {
-                                const request = incomingRequests.find(r => r.userId === userId);
-                                if (request) {
-                                  await updateConnection(request.id, { status: 'DECLINED' });
-                                  setIncomingRequests(prev => prev.filter(r => r.id !== request.id));
-                                  setConnectionStatuses(prev => ({ ...prev, [userId]: 'NOT_CONNECTED' }));
-                                }
-                              }}
                             />
                             {result.matchReasons.length > 0 && (
                               <div className="mt-2 p-2 bg-gray-50 border-l-2 border-[#ff4d00] text-xs">
@@ -1269,123 +1204,6 @@ const App: React.FC = () => {
         </section>
       </main>
 
-      {/* Intro Modal */}
-      {showIntroModal && selectedRecipient && (
-        <div 
-          className="fixed inset-0 bg-white/95 flex items-center justify-center z-[100] p-4 fade-in backdrop-blur-sm"
-          onClick={(e) => e.target === e.currentTarget && setShowIntroModal(false)}
-          onKeyDown={(e) => e.key === 'Escape' && setShowIntroModal(false)}
-        >
-          <div className="bg-white w-full max-w-2xl p-8 md:p-12 brutal-card !shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-            <div className="flex justify-between items-start mb-10">
-              <div className="flex items-center gap-5">
-                <div className="w-12 h-12 border border-black flex items-center justify-center text-xl font-black">
-                  {selectedRecipient.user.name.split(' ').map(n => n[0]).join('')}
-                </div>
-                <div>
-                  <h3 className="text-3xl font-black tracking-tighter uppercase leading-none">{selectedRecipient.user.name}</h3>
-                  <div className="flex items-center gap-3 mt-2">
-                    <span className="text-[9px] font-black uppercase tracking-widest text-[#ff4d00]">
-                      From: {activeProfile?.type || 'No profile'} identity
-                    </span>
-                    <span className="text-[9px] text-gray-200">|</span>
-                  </div>
-                </div>
-              </div>
-              <button 
-                onClick={() => { setShowIntroModal(false); setSelectedRecipient(null); setIntroText(''); }} 
-                className="text-4xl font-light hover:text-[#ff4d00] leading-none"
-                aria-label="Close modal"
-              >
-                &times;
-              </button>
-            </div>
-            
-            <div className="space-y-10">
-              <div>
-                <label className="handwritten text-xl block mb-3 text-[#ff4d00]">Quick Time Commitment:</label>
-                <div className="flex gap-2 mb-4">
-                  {(['10min', '15min', 'async'] as const).map(option => (
-                    <button
-                      key={option}
-                      onClick={() => setTimeCommitment(option)}
-                      className={`btn-brutal flex-1 ${timeCommitment === option ? '!bg-black !text-white' : ''}`}
-                    >
-                      {option === 'async' ? 'Async Voice' : option}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="handwritten text-xl block mb-3 text-[#ff4d00]">Message:</label>
-                <textarea 
-                  value={introText}
-                  onChange={(e) => setIntroText(e.target.value)}
-                  placeholder="Brief message..."
-                  className="w-full text-xl font-bold leading-tight border-none p-0 focus:ring-0 italic h-24 resize-none placeholder-gray-100"
-                  maxLength={200}
-                />
-                <p className="text-[8px] text-gray-300 mt-2">{introText.length}/200</p>
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-3">
-                <button 
-                  onClick={generateAIIntro}
-                  disabled={isGenerating}
-                  className="btn-brutal !bg-gray-50 !text-gray-400 !border-gray-200 flex-1 disabled:opacity-50"
-                >
-                  {isGenerating ? 'Synthesizing...' : 'AI Draft'}
-                </button>
-                <button 
-                  onClick={handleSendIntro}
-                  disabled={!introText.trim()}
-                  className="btn-brutal flex-1 !bg-black !text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Send ({timeCommitment === 'async' ? 'Async' : timeCommitment})
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Quick Decline Modal */}
-      {showDeclineModal && decliningConnection && (
-        <div 
-          className="fixed inset-0 bg-white/95 flex items-center justify-center z-[100] p-4 fade-in backdrop-blur-sm"
-          onClick={(e) => e.target === e.currentTarget && (setShowDeclineModal(false), setDecliningConnection(null))}
-        >
-          <div className="bg-white w-full max-w-md p-6 brutal-card">
-            <h3 className="text-xl font-black mb-4 uppercase">Quick Decline</h3>
-            <div className="space-y-2 mb-6">
-              {[
-                'Not a fit, but try X',
-                'Can intro you to someone better',
-                'Heads down right now',
-                'Not available'
-              ].map(reason => (
-                <button
-                  key={reason}
-                  onClick={() => handleQuickDecline(decliningConnection.id, reason)}
-                  className="btn-brutal w-full text-left !py-3"
-                >
-                  {reason}
-                </button>
-              ))}
-            </div>
-            <button
-              onClick={() => {
-                setShowDeclineModal(false);
-                setDecliningConnection(null);
-              }}
-              className="btn-brutal w-full !bg-gray-50"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Onboarding Modal */}
       {showOnboarding && user && (
@@ -1402,119 +1220,48 @@ const App: React.FC = () => {
           onSave={(updates) => {
             handleUpdateProfile(editingProfile.id, updates);
             setEditingProfile(null);
+            // Reload applications if profile changed
+            if (editingProfile.id === activeProfileId) {
+              const updatedProfile = { ...editingProfile, ...updates };
+              const applications = applicationService.getApplicationsForProfile(user.id, updatedProfile.id);
+              setConnectionApplications(applications);
+            }
           }}
           onClose={() => setEditingProfile(null)}
         />
       )}
 
-      {/* Make Intro Modal */}
-      {showMakeIntroModal && user && (
-        <MakeIntroModal
-          requester={user}
-          networkVault={networkVault}
-          discoveryUsers={discoveryUsers}
-          onMakeIntro={async (personA, personB, context, timeCommitment) => {
-            // Handle making intro - create connection request
-            try {
-              let recipientUserId: string;
-              let recipientName: string;
-              
-              // Check if Person B is a vault contact or a discovery user
-              if ('goodFor' in personB) {
-                // It's a NetworkVaultContact - need to find or create user
-                // For now, create connection using the vault contact info
-                // In production, you'd match this to an actual user or create an intro record
-                recipientName = personB.name;
-                // Create intro connection
-                const introConnection: NetworkConnection = {
-                  id: `intro_${user.id}_${Date.now()}`,
-                  userId: user.id,
-                  connectedUserId: `vault_${personB.id}`, // Temporary ID for vault contacts
-                  name: recipientName,
-                  tagline: context,
-                  lastInteraction: new Date(),
-                  privateNotes: `Intro context: "${context}"`,
-                  status: 'PENDING',
-                  timeCommitment,
-                  introducedBy: user.id,
-                  isInitiator: true
-                };
-                setConnections(prev => [...prev, introConnection]);
-                await dataService.saveConnection(user.id, introConnection);
-              } else {
-                // It's a User from discovery
-                recipientUserId = personB.id;
-                recipientName = personB.name;
-                
-                // Check availability before making intro
-                const recipientProfile = personB.profiles[0];
-                if (recipientProfile && !recipientProfile.isAvailable) {
-                  throw new Error(`${recipientName} is currently unavailable for introductions.`);
-                }
-                
-                // Create bidirectional connection request (both sides get notified)
-                const requesterConnection: NetworkConnection = {
-                  id: `conn_${user.id}_${recipientUserId}_${Date.now()}`,
-                  userId: user.id,
-                  connectedUserId: recipientUserId,
-                  name: recipientName,
-                  tagline: personB.tagline || personB.profiles[0]?.activeSignal || personB.profiles[0]?.industry || '',
-                  lastInteraction: new Date(),
-                  privateNotes: `Intro context: "${context}"\nTime commitment: ${timeCommitment}\nStatus: Waiting for ${recipientName} to accept.`,
-                  status: 'PENDING',
-                  timeCommitment,
-                  introducedBy: user.id,
-                  isInitiator: true
-                };
-                
-                // Create connection record for recipient (so they see it in their incoming requests)
-                const recipientConnection: NetworkConnection = {
-                  id: `conn_${recipientUserId}_${user.id}_${Date.now()}`,
-                  userId: recipientUserId,
-                  connectedUserId: user.id,
-                  name: user.name,
-                  tagline: user.profiles[0]?.activeSignal || user.profiles[0]?.industry || user.tagline || '',
-                  lastInteraction: new Date(),
-                  privateNotes: `Intro from ${user.name} (${activeProfile?.type || 'default'} profile):\nContext: "${context}"\nTime commitment: ${timeCommitment}\n\nYou can Accept, Redirect, or Decline.`,
-                  status: 'PENDING',
-                  timeCommitment,
-                  introducedBy: user.id,
-                  isInitiator: false,
-                  profileId: activeProfileId || user.profiles[0]?.id
-                };
-                
-                // Save both connection records
-                setConnections(prev => [...prev, requesterConnection]);
-                await dataService.saveConnection(user.id, requesterConnection);
-                await dataService.saveConnection(recipientUserId, recipientConnection);
-                
-                // Notify recipient by adding to their incoming requests (refresh if recipient is viewing)
-                if (import.meta.env.VITE_SUPABASE_URL) {
-                  try {
-                    // Reload incoming requests to ensure recipient sees the new intro
-                    const updatedIncoming = await dbService.getIncomingRequests(recipientUserId);
-                    // If recipient is viewing, their requests will refresh on next load
-                  } catch (err) {
-                    console.warn('Could not refresh recipient requests:', err);
-                  }
-                }
-                
-                // Update connection status
-                setConnectionStatuses(prev => ({
-                  ...prev,
-                  [recipientUserId]: 'PENDING_SENT'
-                }));
-              }
-              
-              setShowMakeIntroModal(false);
-            } catch (error) {
-              console.error('Failed to make intro:', error);
-              throw error;
-            }
+      {/* Connection Application Modal */}
+      {showApplicationModal && applicationRecipient && user && activeProfile && (
+        <ConnectionApplicationModal
+          recipient={applicationRecipient.user}
+          recipientProfile={applicationRecipient.profile}
+          currentUser={user}
+          onApply={async (answers) => {
+            // Create application
+            const application: ConnectionApplication = {
+              id: `app_${user.id}_${applicationRecipient.user.id}_${Date.now()}`,
+              applicantId: user.id,
+              recipientId: applicationRecipient.user.id,
+              profileId: applicationRecipient.profile.id,
+              answers,
+              createdAt: new Date(),
+              status: 'PENDING'
+            };
+            
+            applicationService.createApplication(application);
+            
+            // If recipient is viewing, refresh their applications (in a real app, this would be real-time)
+            // For now, just show success
+            alert('Application submitted! The recipient will review it and you\'ll be notified if accepted.');
           }}
-          onClose={() => setShowMakeIntroModal(false)}
+          onClose={() => {
+            setShowApplicationModal(false);
+            setApplicationRecipient(null);
+          }}
         />
       )}
+
 
       {/* Walkthrough */}
       {showWalkthrough && user && (

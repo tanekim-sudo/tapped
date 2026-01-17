@@ -468,13 +468,13 @@ export const dbService = {
         private_notes: connection.privateNotes || null,
         status: connection.status,
         time_commitment: connection.timeCommitment || null,
-        introduced_by: connection.introducedBy || null
+        introduced_by: connection.introducedBy || null,
+        is_initiator: connection.isInitiator !== undefined ? connection.isInitiator : (connection.connectedUserId ? true : false)
       };
       
       // Only add new fields if they exist in schema
       if (connection.connectedUserId) {
         connectionData.connected_user_id = connection.connectedUserId;
-        connectionData.is_initiator = connection.isInitiator !== undefined ? connection.isInitiator : true;
       }
       if (connection.profileId) {
         connectionData.profile_id = connection.profileId;
@@ -501,7 +501,8 @@ export const dbService = {
               private_notes: connection.privateNotes || null,
               status: connection.status,
               time_commitment: connection.timeCommitment || null,
-              introduced_by: connection.introducedBy || null
+              introduced_by: connection.introducedBy || null,
+              is_initiator: connection.isInitiator !== undefined ? connection.isInitiator : false
             }])
             .select()
             .single();
@@ -552,7 +553,7 @@ export const dbService = {
                 status: 'PENDING',
                 time_commitment: connection.timeCommitment || null,
                 introduced_by: connection.introducedBy || null,
-                is_initiator: false,
+                is_initiator: false, // Recipient is never the initiator
                 profile_id: connection.profileId || null
               }]);
           }

@@ -102,38 +102,49 @@ ALTER TABLE connections ENABLE ROW LEVEL SECURITY;
 -- For now, we'll use a simple approach - you can refine this later
 
 -- Users: Anyone can read, but only authenticated users can write
+DROP POLICY IF EXISTS "Users are viewable by everyone" ON users;
 CREATE POLICY "Users are viewable by everyone" ON users
   FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Users can insert their own data" ON users;
 CREATE POLICY "Users can insert their own data" ON users
   FOR INSERT WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Users can update their own data" ON users;
 CREATE POLICY "Users can update their own data" ON users
   FOR UPDATE USING (true);
 
 -- Profiles: Anyone can read, users can manage their own
+DROP POLICY IF EXISTS "Profiles are viewable by everyone" ON profiles;
 CREATE POLICY "Profiles are viewable by everyone" ON profiles
   FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Users can insert their own profiles" ON profiles;
 CREATE POLICY "Users can insert their own profiles" ON profiles
   FOR INSERT WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Users can update their own profiles" ON profiles;
 CREATE POLICY "Users can update their own profiles" ON profiles
   FOR UPDATE USING (true);
 
+DROP POLICY IF EXISTS "Users can delete their own profiles" ON profiles;
 CREATE POLICY "Users can delete their own profiles" ON profiles
   FOR DELETE USING (true);
 
 -- Connections: Users can only see/manage their own
+DROP POLICY IF EXISTS "Users can view their own connections" ON connections;
 CREATE POLICY "Users can view their own connections" ON connections
   FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Users can insert their own connections" ON connections;
 CREATE POLICY "Users can insert their own connections" ON connections
   FOR INSERT WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Users can update their own connections" ON connections;
 CREATE POLICY "Users can update their own connections" ON connections
   FOR UPDATE USING (true);
 
+DROP POLICY IF EXISTS "Users can delete their own connections" ON connections;
 CREATE POLICY "Users can delete their own connections" ON connections
   FOR DELETE USING (true);
 
@@ -147,12 +158,15 @@ END;
 $$ language 'plpgsql';
 
 -- Triggers to auto-update updated_at
+DROP TRIGGER IF EXISTS update_users_updated_at ON users;
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_profiles_updated_at ON profiles;
 CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON profiles
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_connections_updated_at ON connections;
 CREATE TRIGGER update_connections_updated_at BEFORE UPDATE ON connections
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -181,18 +195,92 @@ CREATE INDEX IF NOT EXISTS idx_network_vault_good_for ON network_vault_contacts 
 -- RLS for network vault contacts
 ALTER TABLE network_vault_contacts ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view their own vault contacts" ON network_vault_contacts;
 CREATE POLICY "Users can view their own vault contacts" ON network_vault_contacts
   FOR SELECT USING (true); -- For now, allowing all reads (can restrict later)
 
+DROP POLICY IF EXISTS "Users can insert their own vault contacts" ON network_vault_contacts;
 CREATE POLICY "Users can insert their own vault contacts" ON network_vault_contacts
   FOR INSERT WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Users can update their own vault contacts" ON network_vault_contacts;
 CREATE POLICY "Users can update their own vault contacts" ON network_vault_contacts
   FOR UPDATE USING (true);
 
+DROP POLICY IF EXISTS "Users can delete their own vault contacts" ON network_vault_contacts;
 CREATE POLICY "Users can delete their own vault contacts" ON network_vault_contacts
   FOR DELETE USING (true);
 
 -- Trigger for network vault updated_at
+DROP TRIGGER IF EXISTS update_network_vault_updated_at ON network_vault_contacts;
 CREATE TRIGGER update_network_vault_updated_at BEFORE UPDATE ON network_vault_contacts
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Messages table for real-time chat
+CREATE TABLE IF NOT EXISTS messages (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  connection_id TEXT NOT NULL REFERENCES connections(id) ON DELETE CASCADE,
+  sender_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  receiver_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  message_type TEXT NOT NULL DEFAULT 'text' CHECK (message_type IN ('text', 'system')),
+  is_read BOOLEAN DEFAULT false,
+  read_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Indexes for messages
+CREATE INDEX IF NOT EXISTS idx_messages_connection_id ON messages(connection_id);
+CREATE INDEX IF NOT EXISTS idx_messages_sender_id ON messages(sender_id);
+CREATE INDEX IF NOT EXISTS idx_messages_receiver_id ON messages(receiver_id);
+CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_connection_created ON messages(connection_id, created_at DESC);
+
+-- RLS for messages
+ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view messages in their connections" ON messages;
+CREATE POLICY "Users can view messages in their connections" ON messages
+  FOR SELECT USING (true); -- Allow all for now, refine later with proper auth
+
+DROP POLICY IF EXISTS "Users can insert their own messages" ON messages;
+CREATE POLICY "Users can insert their own messages" ON messages
+  FOR INSERT WITH CHECK (true); -- Allow for now, refine later
+
+DROP POLICY IF EXISTS "Users can update messages they received" ON messages;
+CREATE POLICY "Users can update messages they received" ON messages
+  FOR UPDATE USING (true); -- Allow for now, refine later
+
+-- Trigger for messages updated_at
+DROP TRIGGER IF EXISTS update_messages_updated_at ON messages;
+CREATE TRIGGER update_messages_updated_at BEFORE UPDATE ON messages
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Typing indicators table (temporary, ephemeral data)
+CREATE TABLE IF NOT EXISTS typing_indicators (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  connection_id TEXT NOT NULL REFERENCES connections(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  is_typing BOOLEAN DEFAULT true,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(connection_id, user_id)
+);
+
+-- Index for typing indicators
+CREATE INDEX IF NOT EXISTS idx_typing_connection_id ON typing_indicators(connection_id);
+
+-- Enable Realtime for messages and typing_indicators
+-- Note: In Supabase, you may need to enable Realtime via the dashboard
+-- Run these commands in Supabase SQL Editor if Realtime is not enabled:
+-- ALTER PUBLICATION supabase_realtime ADD TABLE messages;
+-- ALTER PUBLICATION supabase_realtime ADD TABLE typing_indicators;
+
+-- Function to clean up old typing indicators (run periodically)
+CREATE OR REPLACE FUNCTION cleanup_typing_indicators()
+RETURNS void AS $$
+BEGIN
+  DELETE FROM typing_indicators 
+  WHERE updated_at < NOW() - INTERVAL '10 seconds';
+END;
+$$ LANGUAGE plpgsql;
