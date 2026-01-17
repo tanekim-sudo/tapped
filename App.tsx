@@ -156,11 +156,13 @@ const App: React.FC = () => {
             }, 1000);
           }
           
-          // Mark as initialized - user is logged in, go to app
+          // Mark as initialized - user is logged in, skip splash and go to app
           setIsInitialized(true);
+          setShowSplash(false); // Skip splash if logged in
         } else {
-          // No user - mark initialized and show login after splash
+          // No user - mark initialized, show splash then login
           setIsInitialized(true);
+          // Keep splash showing - it will transition to login
         }
       } catch (error) {
         console.error('Failed to initialize app:', error);
@@ -308,8 +310,8 @@ const App: React.FC = () => {
   }, [searchQuery, user]);
 
 
-  // Show splash screen first
-  if (showSplash) {
+  // Show splash screen first (only if not logged in)
+  if (showSplash && !user) {
     return (
       <SplashScreen 
         onComplete={() => {
@@ -321,6 +323,11 @@ const App: React.FC = () => {
         }} 
       />
     );
+  }
+  
+  // If user is logged in, skip splash
+  if (user && showSplash) {
+    setShowSplash(false);
   }
 
   // If not logged in and initialized, show login
