@@ -1,5 +1,6 @@
 import { User, ContextProfile } from '../types';
 import { dbService } from './supabaseService';
+import { rankSearchResults } from './searchRankingService';
 
 interface SearchResult {
   user: User;

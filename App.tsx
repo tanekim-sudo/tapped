@@ -12,6 +12,7 @@ import DatabaseStatus from './components/DatabaseStatus';
 import MessagesView from './components/MessagesView';
 import NetworkVault from './components/NetworkVault';
 import RankedApplicantsView from './components/RankedApplicantsView';
+import SplashScreen from './components/SplashScreen';
 import ConnectionApplicationModal from './components/ConnectionApplicationModal';
 import { enhancedSearch, getRecommendations, getSearchSuggestions } from './services/enhancedSearchService';
 import { applicationService } from './services/applicationService';
@@ -41,6 +42,8 @@ const App: React.FC = () => {
   const [discoveryUsers, setDiscoveryUsers] = useState<User[]>([]);
   const [connectionStatuses, setConnectionStatuses] = useState<Record<string, 'CONNECTED' | 'NOT_CONNECTED'>>({});
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
+  const [isInitialized, setIsInitialized] = useState(false);
   
   const [selectedChat, setSelectedChat] = useState<NetworkConnection | null>(null);
   const [chatMessage, setChatMessage] = useState('');
@@ -68,15 +71,15 @@ const App: React.FC = () => {
             setActiveProfileId(currentUser.profiles[0].id);
           }
           
-        // Load data
-        try {
-          const userConnections = await dataService.getConnections(currentUser.id);
-          const discovery = await dataService.getDiscoveryUsers(currentUser.id);
-          
-          console.log('Loaded', discovery.length, 'discovery users');
-          
-          setConnections(userConnections);
-          setDiscoveryUsers(discovery);
+          // Load data
+          try {
+            const userConnections = await dataService.getConnections(currentUser.id);
+            const discovery = await dataService.getDiscoveryUsers(currentUser.id);
+            
+            console.log('Loaded', discovery.length, 'discovery users');
+            
+            setConnections(userConnections);
+            setDiscoveryUsers(discovery);
           
           // Load network vault (non-blocking)
           try {
@@ -143,22 +146,31 @@ const App: React.FC = () => {
             setDiscoveryUsers([]);
           }
 
-          // Check if onboarding needed - require at least one profile
-          if (currentUser.profiles.length === 0) {
-            setShowOnboarding(true);
-          } else if (!onboardingService.isWalkthroughComplete()) {
-            // Show walkthrough after a short delay
-            setTimeout(() => {
-              setShowWalkthrough(true);
-            }, 1000);
+            // Check if onboarding needed - require at least one profile
+            if (currentUser.profiles.length === 0) {
+              setShowOnboarding(true);
+            } else if (!onboardingService.isWalkthroughComplete()) {
+              // Show walkthrough after a short delay
+              setTimeout(() => {
+                setShowWalkthrough(true);
+              }, 1000);
+            }
+          } catch (err) {
+            console.error('Failed to load data:', err);
+            // Set empty arrays as fallback
+            setConnections([]);
+            setDiscoveryUsers([]);
           }
+          
+          // Mark as initialized - user is logged in, go to app
+          setIsInitialized(true);
         } else {
-          setShowLoginModal(true);
+          // No user - mark initialized and show login after splash
+          setIsInitialized(true);
         }
       } catch (error) {
         console.error('Failed to initialize app:', error);
-        // Still show login modal even if there's an error
-        setShowLoginModal(true);
+        setIsInitialized(true);
       }
     };
     
@@ -302,20 +314,25 @@ const App: React.FC = () => {
   }, [searchQuery, user]);
 
 
-  if (!user) {
+  // Show splash screen first
+  if (showSplash) {
+    return (
+      <SplashScreen 
+        onComplete={() => {
+          setShowSplash(false);
+          // After splash, show login if not logged in
+          if (!user && isInitialized) {
+            setShowLoginModal(true);
+          }
+        }} 
+      />
+    );
+  }
+
+  // If not logged in and initialized, show login
+  if (!user && isInitialized) {
     return (
       <>
-        <div className="min-h-screen bg-[#ffffff] flex items-center justify-center">
-          <div className="text-center">
-            <h1 className="text-4xl font-black mb-4">Tapped.</h1>
-            <button 
-              onClick={() => setShowLoginModal(true)}
-              className="btn-brutal !bg-black !text-white"
-            >
-              Get Started
-            </button>
-          </div>
-        </div>
         {showLoginModal && (
           <LoginModal
             onSignIn={async (email, password) => {
@@ -419,13 +436,17 @@ const App: React.FC = () => {
               }
             }}
             onClose={() => {
-              if (user) setShowLoginModal(false);
+              // Don't allow closing if not logged in - user must sign in
+              if (!user) return;
+              setShowLoginModal(false);
             }}
           />
         )}
       </>
     );
   }
+
+  // User is logged in - show the app
 
   const activeProfile = user?.profiles?.find(p => p.id === activeProfileId) || (user?.profiles?.[0] || null);
   // Filter discovery users
