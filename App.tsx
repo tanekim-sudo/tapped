@@ -335,7 +335,6 @@ const App: React.FC = () => {
                 }
                 setConnections([]);
                 setDiscoveryUsers([]);
-                setIncomingRequests([]);
                 setConnectionStatuses({});
                 setRecommendations([]);
                 
