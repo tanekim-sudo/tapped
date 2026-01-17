@@ -96,19 +96,22 @@ const App: React.FC = () => {
               setIncomingRequests(incoming);
               
               // Load connection statuses for all discovery users (non-blocking)
+              // Do this in parallel with error handling to avoid blocking
               const statuses: Record<string, 'CONNECTED' | 'PENDING_SENT' | 'PENDING_RECEIVED' | 'NOT_CONNECTED'> = {};
-              // Only check status for first 20 users to avoid blocking
               const usersToCheck = discovery.slice(0, 20);
-              for (const otherUser of usersToCheck) {
-                try {
-                  const status = await dbService.getConnectionStatus(currentUser.id, otherUser.id);
-                  if (status) {
-                    statuses[otherUser.id] = status;
+              await Promise.allSettled(
+                usersToCheck.map(async (otherUser) => {
+                  try {
+                    const status = await dbService.getConnectionStatus(currentUser.id, otherUser.id);
+                    if (status) {
+                      statuses[otherUser.id] = status;
+                    }
+                  } catch (err) {
+                    // Silently fail - don't block UI
+                    console.warn('Failed to get connection status for', otherUser.id, err);
                   }
-                } catch (err) {
-                  console.warn('Failed to get connection status:', err);
-                }
-              }
+                })
+              );
               setConnectionStatuses(statuses);
             } catch (err) {
               console.warn('Failed to load incoming requests:', err);
@@ -283,20 +286,24 @@ const App: React.FC = () => {
                         const incoming = await dbService.getIncomingRequests(signedInUser.id);
                         setIncomingRequests(incoming);
                         
-                        // Load connection statuses for first 20 users only (to avoid blocking)
-                        const statuses: Record<string, 'CONNECTED' | 'PENDING_SENT' | 'PENDING_RECEIVED' | 'NOT_CONNECTED'> = {};
-                        const usersToCheck = discovery.slice(0, 20);
-                        for (const otherUser of usersToCheck) {
+                      // Load connection statuses for first 20 users only (to avoid blocking)
+                      // Do this in parallel with error handling
+                      const statuses: Record<string, 'CONNECTED' | 'PENDING_SENT' | 'PENDING_RECEIVED' | 'NOT_CONNECTED'> = {};
+                      const usersToCheck = discovery.slice(0, 20);
+                      await Promise.allSettled(
+                        usersToCheck.map(async (otherUser) => {
                           try {
                             const status = await dbService.getConnectionStatus(signedInUser.id, otherUser.id);
                             if (status) {
                               statuses[otherUser.id] = status;
                             }
                           } catch (err) {
-                            console.warn('Failed to get connection status:', err);
+                            // Silently fail - don't block UI
+                            console.warn('Failed to get connection status for', otherUser.id, err);
                           }
-                        }
-                        setConnectionStatuses(statuses);
+                        })
+                      );
+                      setConnectionStatuses(statuses);
                       } catch (err) {
                         console.warn('Failed to load connection data:', err);
                         setIncomingRequests([]);
@@ -792,10 +799,10 @@ const App: React.FC = () => {
         <section id="search-view" className="min-h-[50vh]">
           {activeTab === 'MESSAGES' && user && (
             <MessagesView
-              connections={connections}
-              incomingRequests={incomingRequests}
+              connections={connections || []}
+              incomingRequests={incomingRequests || []}
               currentUserId={user.id}
-              discoveryUsers={discoveryUsers}
+              discoveryUsers={discoveryUsers || []}
               currentUser={user}
               activeProfileId={activeProfileId}
               onSelectChat={setSelectedChat}

@@ -23,10 +23,10 @@ interface MessagesViewProps {
 }
 
 const MessagesView: React.FC<MessagesViewProps> = ({
-  connections,
-  incomingRequests,
+  connections = [],
+  incomingRequests = [],
   currentUserId,
-  discoveryUsers,
+  discoveryUsers = [],
   onSelectChat,
   onAcceptRequest,
   onDeclineRequest,
@@ -36,6 +36,14 @@ const MessagesView: React.FC<MessagesViewProps> = ({
 }) => {
   const [activeFilter, setActiveFilter] = useState<'all' | 'requests' | 'chats'>('all');
   const [profileFilter, setProfileFilter] = useState<string>('all'); // 'all' or profile id
+  
+  // Safety check - ensure we have valid data
+  const safeConnections = Array.isArray(connections) ? connections.filter(c => c) : [];
+  const safeIncomingRequests = Array.isArray(incomingRequests) ? incomingRequests.filter(r => r) : [];
+  const safeDiscoveryUsers = Array.isArray(discoveryUsers) ? discoveryUsers.filter(u => u) : [];
+  
+  // Get active chats (ACTIVE connections)
+  const activeChats = safeConnections.filter(c => c.status === 'ACTIVE');
   
   // Filter chats by profile if selected
   const filteredChats = profileFilter === 'all' 
@@ -47,51 +55,82 @@ const MessagesView: React.FC<MessagesViewProps> = ({
           return c.profileId === profileFilter;
         }
         // Fallback: check notes for profile type mention
-        const profile = currentUser?.profiles.find(p => p.id === profileFilter);
-        if (profile && c.privateNotes?.includes(profile.type)) {
-          return true;
+        if (currentUser && c.privateNotes) {
+          const profile = currentUser.profiles.find(p => p.id === profileFilter);
+          if (profile && c.privateNotes.includes(profile.type)) {
+            return true;
+          }
         }
         return false;
       });
 
   // Parse messages from privateNotes
-  const parseMessages = (notes: string): Message[] => {
-    if (!notes) return [];
+  const parseMessages = (notes: string | undefined): Message[] => {
+    if (!notes || typeof notes !== 'string') return [];
     
-    // Messages are stored as: "Initial intro: "message"\n\nNew message: "message2""
-    const messages: Message[] = [];
-    const lines = notes.split('\n\n');
-    
-    lines.forEach((line, index) => {
-      if (line.includes('Initial intro:') || line.includes('New message:')) {
-        const match = line.match(/: "([^"]+)"/);
-        if (match) {
-          messages.push({
-            id: `msg_${index}`,
-            text: match[1],
-            senderId: line.includes('Initial intro:') ? currentUserId : currentUserId, // Simplified
-            timestamp: new Date()
-          });
+    try {
+      // Messages are stored as: "Initial intro: "message"\n\nNew message: "message2""
+      const messages: Message[] = [];
+      const lines = notes.split('\n\n');
+      
+      lines.forEach((line, index) => {
+        if (line && (line.includes('Initial intro:') || line.includes('New message:'))) {
+          const match = line.match(/: "([^"]+)"/);
+          if (match && match[1]) {
+            messages.push({
+              id: `msg_${index}`,
+              text: match[1],
+              senderId: line.includes('Initial intro:') ? currentUserId : currentUserId, // Simplified
+              timestamp: new Date()
+            });
+          }
         }
-      }
-    });
-    
-    return messages;
+      });
+      
+      return messages;
+    } catch (err) {
+      console.warn('Failed to parse messages:', err);
+      return [];
+    }
   };
-
-  // Get active chats (ACTIVE connections)
-  const activeChats = connections.filter(c => c.status === 'ACTIVE');
 
   // Get user info for a connection
   const getUserForConnection = (conn: NetworkConnection): User | null => {
-    const userId = conn.connectedUserId || conn.userId;
-    return discoveryUsers.find(u => u.id === userId) || null;
+    if (!conn) return null;
+    try {
+      const userId = conn.connectedUserId || conn.userId;
+      return safeDiscoveryUsers.find(u => u && u.id === userId) || null;
+    } catch (err) {
+      console.warn('Error getting user for connection:', err);
+      return null;
+    }
   };
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-300px)] min-h-[500px]">
       {/* Chat List */}
       <div className={`w-full lg:w-80 border-r border-gray-100 flex flex-col ${selectedChat ? 'hidden lg:flex' : 'flex'}`}>
+        {/* Profile Filter */}
+        {currentUser && currentUser.profiles && currentUser.profiles.length > 1 && (
+          <div className="mb-4 pb-4 border-b border-gray-100">
+            <label className="text-[8px] font-black uppercase tracking-widest text-gray-400 mb-2 block">
+              View Messages By Profile
+            </label>
+            <select
+              value={profileFilter}
+              onChange={(e) => setProfileFilter(e.target.value)}
+              className="w-full p-2 border-2 border-gray-200 focus:border-[#ff4d00] outline-none text-xs font-bold uppercase"
+            >
+              <option value="all">All Profiles</option>
+              {currentUser.profiles.map(profile => (
+                <option key={profile.id} value={profile.id}>
+                  {profile.type} Profile
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {/* Filter Tabs */}
         <div className="flex gap-2 mb-4 border-b border-gray-100 pb-2">
           <button
@@ -102,7 +141,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({
           >
             All
           </button>
-          {incomingRequests.length > 0 && (
+          {safeIncomingRequests.length > 0 && (
             <button
               onClick={() => setActiveFilter('requests')}
               className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 relative ${
@@ -111,7 +150,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({
             >
               Requests
               <span className="absolute -top-1 -right-1 bg-[#ff4d00] text-white text-[8px] font-black rounded-full w-4 h-4 flex items-center justify-center">
-                {incomingRequests.length}
+                {safeIncomingRequests.length}
               </span>
             </button>
           )}
@@ -128,14 +167,14 @@ const MessagesView: React.FC<MessagesViewProps> = ({
         {/* Chat/Request List */}
         <div className="flex-grow overflow-y-auto space-y-2">
           {/* Incoming Requests */}
-          {(activeFilter === 'all' || activeFilter === 'requests') && incomingRequests.length > 0 && (
+          {(activeFilter === 'all' || activeFilter === 'requests') && safeIncomingRequests.length > 0 && (
             <div className="mb-4">
               <h3 className="text-[9px] font-black uppercase text-gray-400 mb-2 tracking-widest">
                 Connection Requests
               </h3>
-              {incomingRequests.map(request => {
+              {safeIncomingRequests.map(request => {
                 const requestUser = getUserForConnection(request);
-                const initials = requestUser?.name.split(' ').map(n => n[0]).join('') || request.name.split(' ').map(n => n[0]).join('');
+                const initials = requestUser?.name?.split(' ').map(n => n[0]).join('') || request.name?.split(' ').map(n => n[0]).join('') || '?';
                 
                 return (
                   <div
@@ -195,10 +234,11 @@ const MessagesView: React.FC<MessagesViewProps> = ({
               )}
               {filteredChats.length > 0 ? (
                 filteredChats.map(chat => {
+                  if (!chat) return null;
                   const chatUser = getUserForConnection(chat);
-                  const initials = chatUser?.name.split(' ').map(n => n[0]).join('') || chat.name.split(' ').map(n => n[0]).join('');
+                  const initials = chatUser?.name?.split(' ').map(n => n[0]).join('') || chat.name?.split(' ').map(n => n[0]).join('') || '?';
                   const messages = parseMessages(chat.privateNotes);
-                  const lastMessage = messages[messages.length - 1];
+                  const lastMessage = messages && messages.length > 0 ? messages[messages.length - 1] : null;
                   
                   return (
                     <div
@@ -226,7 +266,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({
                               })()}
                             </div>
                             <span className="text-[8px] text-gray-400">
-                              {chat.lastInteraction.toLocaleDateString()}
+                              {chat.lastInteraction ? new Date(chat.lastInteraction).toLocaleDateString() : ''}
                             </span>
                           </div>
                           {lastMessage && (
@@ -253,7 +293,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({
           )}
 
           {/* Empty State */}
-          {activeFilter === 'all' && incomingRequests.length === 0 && activeChats.length === 0 && (
+          {activeFilter === 'all' && safeIncomingRequests.length === 0 && activeChats.length === 0 && (
             <div className="brutal-card p-8 text-center bg-gray-50">
               <p className="text-sm font-bold text-gray-400 italic">
                 No messages or requests yet. Connect with someone to start chatting.

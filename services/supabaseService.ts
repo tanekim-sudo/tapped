@@ -319,20 +319,7 @@ export const dbService = {
     if (!supabase) return [];
     
     try {
-      // First check if connected_user_id column exists by trying a simple query
-      const { data: testData, error: testError } = await supabase
-        .from('connections')
-        .select('connected_user_id')
-        .limit(1);
-      
-      const hasConnectedUserIdColumn = !testError || testError.code !== '42703';
-      
-      if (!hasConnectedUserIdColumn) {
-        console.warn('connected_user_id column not found, using old schema');
-        return [];
-      }
-      
-      // Query with connected_user_id
+      // Try to query with connected_user_id first
       const { data, error } = await supabase
         .from('connections')
         .select('*')
@@ -341,12 +328,14 @@ export const dbService = {
         .order('created_at', { ascending: false });
       
       if (error) {
-        // If column doesn't exist, return empty array (old schema)
-        if (error.code === '42703' || error.message?.includes('column') || error.message?.includes('does not exist')) {
+        // If column doesn't exist (error 42703), return empty array (old schema)
+        if (error.code === '42703' || error.code === '42883' || error.message?.includes('column') || error.message?.includes('does not exist')) {
           console.warn('connected_user_id column not found, using old schema');
           return [];
         }
-        throw error;
+        // For other errors, also return empty to prevent crashes
+        console.warn('Error fetching incoming requests:', error);
+        return [];
       }
       
       return (data || []).map((c: any) => ({
@@ -427,8 +416,29 @@ export const dbService = {
         .eq('connected_user_id', userId)
         .maybeSingle();
       
-      if (receivedError && receivedError.code !== 'PGRST116') {
+      if (receivedError) {
+        // If column error, just return based on sent status
+        if (receivedError.code === '42703' || receivedError.code === '42883') {
+          if (sent) {
+            if (sent.status === 'ACTIVE') return 'CONNECTED';
+            if (sent.status === 'PENDING') return 'PENDING_SENT';
+          }
+          return 'NOT_CONNECTED';
+        }
+        // PGRST116 means no rows - that's fine
+        if (receivedError.code === 'PGRST116') {
+          if (sent) {
+            if (sent.status === 'ACTIVE') return 'CONNECTED';
+            if (sent.status === 'PENDING') return 'PENDING_SENT';
+          }
+          return 'NOT_CONNECTED';
+        }
         console.warn('Error checking received connection:', receivedError);
+        // Still check sent status
+        if (sent) {
+          if (sent.status === 'ACTIVE') return 'CONNECTED';
+          if (sent.status === 'PENDING') return 'PENDING_SENT';
+        }
         return 'NOT_CONNECTED';
       }
       
