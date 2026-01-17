@@ -1264,8 +1264,8 @@ const App: React.FC = () => {
                           discoveryUsers={discoveryUsers}
                           connectionStatus={connectionStatuses[result.user.id] || 'NOT_CONNECTED'}
                           activeProfile={activeProfile}
-                          glowTier={result.glowTier}
-                          totalScore={result.totalScore}
+                          glowTier={result.glowTier || 'C'}
+                          totalScore={result.totalScore || 0.5}
                         />
                         {/* Match Score Display */}
                         {result.totalScore !== undefined && (
@@ -1280,7 +1280,7 @@ const App: React.FC = () => {
                                   result.glowTier === 'C' ? 'bg-[#ffaa99] text-white' :
                                   'bg-gray-300 text-gray-600'
                                 }`}>
-                                  Tier {result.glowTier}
+                                  Tier {result.glowTier || 'C'}
                                 </span>
                               )}
                             </div>

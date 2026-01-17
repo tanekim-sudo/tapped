@@ -22,7 +22,9 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
   connectionStatus = 'NOT_CONNECTED',
   onAcceptRequest,
   onDeclineRequest,
-  activeProfile
+  activeProfile,
+  glowTier,
+  totalScore
 }) => {
   const primaryProfile = user.profiles[0];
   const initials = user.name.split(' ').map(n => n[0]).join('');
