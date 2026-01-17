@@ -796,6 +796,13 @@ export const dbService = {
       });
       
       console.log(`Fetched ${users.length} discovery users from database`);
+      const usersWithProfiles = users.filter(u => u.profiles && u.profiles.length > 0);
+      const usersWithoutProfiles = users.filter(u => !u.profiles || u.profiles.length === 0);
+      console.log(`  - ${usersWithProfiles.length} users with profiles`);
+      console.log(`  - ${usersWithoutProfiles.length} users without profiles`);
+      if (usersWithoutProfiles.length > 0) {
+        console.warn('Users without profiles:', usersWithoutProfiles.map(u => ({ id: u.id, name: u.name })));
+      }
       return users;
     } catch (error) {
       console.error('Error fetching discovery users:', error);
