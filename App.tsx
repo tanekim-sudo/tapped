@@ -576,9 +576,6 @@ const App: React.FC = () => {
         }));
       }
       
-      // Remove from incoming requests if it was there
-      setIncomingRequests(prev => prev.filter(r => r.id !== id));
-      
       // Reload connections to get the updated reciprocal connection
       try {
         const refreshed = await dataService.getConnections(user.id);
@@ -596,7 +593,6 @@ const App: React.FC = () => {
           [otherUserId]: 'NOT_CONNECTED'
         }));
       }
-      setIncomingRequests(prev => prev.filter(r => r.id !== id));
     }
     
     await dataService.saveConnection(user.id, updated);
