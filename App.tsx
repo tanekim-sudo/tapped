@@ -140,8 +140,8 @@ const App: React.FC = () => {
             setDiscoveryUsers([]);
           }
 
-          // Check if onboarding needed
-          if (currentUser.profiles.length === 0 || !onboardingService.isOnboardingComplete()) {
+          // Check if onboarding needed - require at least one profile
+          if (currentUser.profiles.length === 0) {
             setShowOnboarding(true);
           } else if (!onboardingService.isWalkthroughComplete()) {
             // Show walkthrough after a short delay
@@ -389,8 +389,32 @@ const App: React.FC = () => {
       c.privateNotes.toLowerCase().includes(networkFilter.toLowerCase()));
 
   const handleConnectRequest = async (target: any) => {
-    if (!activeProfile || !user) {
-      alert('Please select a profile first to make connections.');
+    if (!user) {
+      setShowLoginModal(true);
+      return;
+    }
+    
+    // Ensure user has at least one profile
+    if (!user.profiles || user.profiles.length === 0) {
+      setShowOnboarding(true);
+      return;
+    }
+    
+    // Ensure active profile is set
+    if (!activeProfile) {
+      // Auto-select first profile if none selected
+      if (user.profiles.length > 0) {
+        setActiveProfileId(user.profiles[0].id);
+      } else {
+        setShowOnboarding(true);
+        return;
+      }
+    }
+    
+    // Double-check activeProfile after potential auto-selection
+    const currentActiveProfile = user.profiles.find(p => p.id === activeProfileId) || user.profiles[0];
+    if (!currentActiveProfile) {
+      setShowOnboarding(true);
       return;
     }
     
@@ -706,7 +730,7 @@ const App: React.FC = () => {
         )}
         
         {/* Profile Switcher - Prominent at top */}
-        {user && user.profiles.length > 0 && (
+        {user && user.profiles && user.profiles.length > 0 && (
           <div className="mb-6 p-4 bg-[#ff4d00]/5 border-2 border-[#ff4d00]/20 brutal-card">
             <div className="flex items-center justify-between flex-wrap gap-4">
               <div className="flex items-center gap-3">
@@ -773,7 +797,23 @@ const App: React.FC = () => {
 
 
         <section id="search-view" className="min-h-[50vh]">
-          {activeTab === 'MESSAGES' && user && (
+          {/* No Profile Placeholder */}
+          {user && (!user.profiles || user.profiles.length === 0) && (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8">
+              <h2 className="text-2xl md:text-3xl font-black uppercase mb-4">Create Your First Profile</h2>
+              <p className="text-sm md:text-base text-gray-600 mb-6 max-w-md">
+                You need to create a profile before you can start connecting with others.
+              </p>
+              <button
+                onClick={() => setShowOnboarding(true)}
+                className="btn-brutal !bg-black !text-white px-8 py-4 text-base md:text-lg"
+              >
+                Create Profile
+              </button>
+            </div>
+          )}
+
+          {activeTab === 'MESSAGES' && user && user.profiles && user.profiles.length > 0 && (
             <MessagesView
               connections={connections || []}
               currentUserId={user.id}
@@ -1164,7 +1204,7 @@ const App: React.FC = () => {
           )}
 
           {/* Profile management */}
-          {user && (
+          {user && user.profiles && user.profiles.length > 0 && (
             <div className="mt-12 pt-8 border-t border-gray-200">
               <ProfileView 
                 user={user} 

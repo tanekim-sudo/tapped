@@ -95,7 +95,7 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ profile, onSave, on
       className="fixed inset-0 bg-white/95 flex items-center justify-center z-[100] p-4 fade-in backdrop-blur-sm"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white w-full max-w-2xl p-8 md:p-12 brutal-card !shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] max-h-[90vh] overflow-y-auto">
+      <div className="bg-white w-full max-w-2xl p-4 md:p-8 lg:p-12 brutal-card !shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-start mb-8">
           <h3 className="text-3xl font-black tracking-tighter uppercase leading-none">
             Edit {profile.privateName || profile.type} Profile

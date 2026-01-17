@@ -42,17 +42,17 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, userName 
   };
 
   return (
-    <div className="fixed inset-0 bg-white z-[200] flex items-center justify-center p-4">
-      <div className="w-full max-w-lg">
-        <div className="brutal-card p-8 md:p-10 bg-white">
-          <div className="mb-8">
-            <h2 className="text-2xl font-black mb-2 uppercase tracking-tighter">Get Started</h2>
-            <p className="text-sm text-gray-500">
-              Write a short identity statement. You can add more details later.
+    <div className="fixed inset-0 bg-white z-[200] flex items-center justify-center p-4 overflow-y-auto" style={{ touchAction: 'pan-y' }}>
+      <div className="w-full max-w-lg my-auto min-h-0">
+        <div className="brutal-card p-6 md:p-8 lg:p-10 bg-white">
+          <div className="mb-6 md:mb-8">
+            <h2 className="text-xl md:text-2xl font-black mb-2 uppercase tracking-tighter">Get Started</h2>
+            <p className="text-xs md:text-sm text-gray-500">
+              Create your first profile to start connecting.
             </p>
           </div>
           
-          <div className="space-y-4 mb-6">
+          <div className="space-y-4 mb-6 max-h-[calc(100vh-200px)] overflow-y-auto">
             <div>
               <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 block">
                 Profile Name (Private - only you can see this)
@@ -77,7 +77,7 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, userName 
                 value={industry}
                 onChange={(e) => setIndustry(e.target.value)}
                 placeholder="e.g., Tech, VC, Education"
-                className="w-full p-4 border-2 border-gray-200 focus:border-[#ff4d00] outline-none text-sm font-medium"
+                className="w-full p-3 md:p-4 border-2 border-gray-200 focus:border-[#ff4d00] outline-none text-sm font-medium"
                 maxLength={50}
                 autoFocus
               />
@@ -127,7 +127,7 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, userName 
           <button
             onClick={handleComplete}
             disabled={!industry.trim() || !profileName.trim()}
-            className="btn-brutal !bg-black !text-white w-full disabled:opacity-30 disabled:cursor-not-allowed"
+            className="btn-brutal !bg-black !text-white w-full py-3 md:py-4 text-sm md:text-base disabled:opacity-30 disabled:cursor-not-allowed"
           >
             Create Profile
           </button>
