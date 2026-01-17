@@ -145,21 +145,15 @@ const App: React.FC = () => {
             setConnections([]);
             setDiscoveryUsers([]);
           }
-
-            // Check if onboarding needed - require at least one profile
-            if (currentUser.profiles.length === 0) {
-              setShowOnboarding(true);
-            } else if (!onboardingService.isWalkthroughComplete()) {
-              // Show walkthrough after a short delay
-              setTimeout(() => {
-                setShowWalkthrough(true);
-              }, 1000);
-            }
-          } catch (err) {
-            console.error('Failed to load data:', err);
-            // Set empty arrays as fallback
-            setConnections([]);
-            setDiscoveryUsers([]);
+          
+          // Check if onboarding needed - require at least one profile
+          if (currentUser.profiles.length === 0) {
+            setShowOnboarding(true);
+          } else if (!onboardingService.isWalkthroughComplete()) {
+            // Show walkthrough after a short delay
+            setTimeout(() => {
+              setShowWalkthrough(true);
+            }, 1000);
           }
           
           // Mark as initialized - user is logged in, go to app
