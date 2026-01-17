@@ -726,7 +726,7 @@ const App: React.FC = () => {
                     </div>
                   )}
                   <div>
-                    <p className="text-sm font-black uppercase text-[#ff4d00]">{activeProfile?.type || 'No Profile'}</p>
+                    <p className="text-sm font-black uppercase text-[#ff4d00]">{activeProfile?.privateName || activeProfile?.type || 'No Profile'}</p>
                     {activeProfile?.activeSignal && (
                       <p className="text-[9px] text-gray-600 font-bold">{activeProfile.activeSignal}</p>
                     )}
