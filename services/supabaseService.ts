@@ -64,7 +64,8 @@ export const dbService = {
       const mappedProfiles = (data.profiles || []).map((p: any) => ({
         id: p.id,
         type: p.type,
-        bio: p.bio,
+        privateName: p.private_name || undefined,
+        bio: p.bio || '',
         industry: p.industry || '',
         topics: p.topics || [],
         availabilityRules: p.availability_rules || '',
@@ -76,7 +77,10 @@ export const dbService = {
         responseReliability: p.response_reliability !== undefined ? p.response_reliability : 100,
         activeSignal: p.active_signal || undefined,
         photo: p.photo,
-        isActive: p.is_active !== undefined ? p.is_active : true
+        isActive: p.is_active !== undefined ? p.is_active : true,
+        connectionLimit: p.connection_limit || undefined,
+        weeklyCredits: p.weekly_credits || undefined,
+        qualificationQuestions: p.qualification_questions || undefined
       }));
       
       return {
@@ -116,7 +120,8 @@ export const dbService = {
       const mappedProfiles = (data.profiles || []).map((p: any) => ({
         id: p.id,
         type: p.type,
-        bio: p.bio,
+        privateName: p.private_name || undefined,
+        bio: p.bio || '',
         industry: p.industry || '',
         topics: p.topics || [],
         availabilityRules: p.availability_rules || '',
@@ -128,7 +133,10 @@ export const dbService = {
         responseReliability: p.response_reliability !== undefined ? p.response_reliability : 100,
         activeSignal: p.active_signal || undefined,
         photo: p.photo,
-        isActive: p.is_active !== undefined ? p.is_active : true
+        isActive: p.is_active !== undefined ? p.is_active : true,
+        connectionLimit: p.connection_limit || undefined,
+        weeklyCredits: p.weekly_credits || undefined,
+        qualificationQuestions: p.qualification_questions || undefined
       }));
       
       return {
