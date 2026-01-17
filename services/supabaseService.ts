@@ -724,7 +724,10 @@ export const dbService = {
 
   // Discovery - get all users except current
   async getDiscoveryUsers(currentUserId: string): Promise<User[]> {
-    if (!supabase) return [];
+    if (!supabase) {
+      console.warn('Supabase not configured, returning empty discovery users');
+      return [];
+    }
     
     try {
       const { data, error } = await supabase
@@ -732,17 +735,48 @@ export const dbService = {
         .select('*, profiles(*)')
         .neq('id', currentUserId);
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching discovery users:', error);
+        throw error;
+      }
       
-      return (data || []).map((u: any) => ({
-        ...u,
-        profiles: u.profiles || [],
-        stats: u.stats || {
-          conversationsCompleted: 0,
-          peopleHelped: 0,
-          followThroughRate: 100
-        }
-      }));
+      const users = (data || []).map((u: any) => {
+        // Map profiles from database format
+        const mappedProfiles = (u.profiles || []).map((p: any) => ({
+          id: p.id,
+          type: p.type,
+          bio: p.bio || '',
+          industry: p.industry || '',
+          topics: p.topics || [],
+          availabilityRules: p.availability_rules || '',
+          isAvailable: p.is_available !== undefined ? p.is_available : true,
+          location: p.location || '',
+          latitude: p.latitude !== undefined && p.latitude !== null ? p.latitude : undefined,
+          longitude: p.longitude !== undefined && p.longitude !== null ? p.longitude : undefined,
+          openTo: p.open_to || [],
+          responseReliability: p.response_reliability !== undefined ? p.response_reliability : 100,
+          activeSignal: p.active_signal || undefined,
+          photo: p.photo,
+          isActive: p.is_active !== undefined ? p.is_active : true,
+          privateName: p.private_name || undefined,
+          connectionLimit: p.connection_limit || undefined,
+          weeklyCredits: p.weekly_credits || undefined,
+          qualificationQuestions: p.qualification_questions || undefined
+        }));
+        
+        return {
+          ...u,
+          profiles: mappedProfiles,
+          stats: u.stats || {
+            conversationsCompleted: 0,
+            peopleHelped: 0,
+            followThroughRate: 100
+          }
+        };
+      });
+      
+      console.log(`Fetched ${users.length} discovery users from database`);
+      return users;
     } catch (error) {
       console.error('Error fetching discovery users:', error);
       return [];

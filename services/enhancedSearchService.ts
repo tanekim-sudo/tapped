@@ -31,11 +31,18 @@ export const enhancedSearch = async (
     // Get all discovery users
     const allUsers = await dbService.getDiscoveryUsers(currentUserId);
     
-    if (allUsers.length === 0) return [];
+    console.log(`enhancedSearch: Found ${allUsers.length} users for ranking`);
+    
+    if (allUsers.length === 0) {
+      console.warn('No discovery users found');
+      return [];
+    }
 
     // If we have a searcher profile, use the new ranking algorithm
     if (currentUserProfile) {
+      console.log('Using ranking algorithm with profile:', currentUserProfile.id);
       const ranked = rankSearchResults(allUsers, currentUserProfile);
+      console.log(`Ranked ${ranked.length} results`);
       
       // Convert to SearchResult format
       return ranked.map(r => ({
@@ -50,6 +57,7 @@ export const enhancedSearch = async (
       }));
     }
 
+    console.warn('No currentUserProfile provided, using basic search');
     // Fallback: if no profile, use basic search
     return basicSearch(query, currentUserId, filters, allUsers);
   } catch (error) {

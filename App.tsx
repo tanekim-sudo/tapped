@@ -62,6 +62,7 @@ const App: React.FC = () => {
       try {
         const currentUser = await authService.getCurrentUser();
         if (currentUser) {
+          console.log('Loaded user:', currentUser.id, 'with', currentUser.profiles.length, 'profiles');
           setUser(currentUser);
           if (currentUser.profiles.length > 0) {
             setActiveProfileId(currentUser.profiles[0].id);
@@ -71,6 +72,8 @@ const App: React.FC = () => {
         try {
           const userConnections = await dataService.getConnections(currentUser.id);
           const discovery = await dataService.getDiscoveryUsers(currentUser.id);
+          
+          console.log('Loaded', discovery.length, 'discovery users');
           
           setConnections(userConnections);
           setDiscoveryUsers(discovery);
@@ -312,8 +315,13 @@ const App: React.FC = () => {
                   throw new Error('Failed to sign in. Please try again.');
                 }
                 
+                console.log('Sign in successful:', signedInUser.id);
+                
                 // Set user first to ensure app renders
                 setUser(signedInUser);
+                if (signedInUser.profiles.length > 0) {
+                  setActiveProfileId(signedInUser.profiles[0].id);
+                }
                 setConnections([]);
                 setDiscoveryUsers([]);
                 setIncomingRequests([]);

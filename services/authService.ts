@@ -127,20 +127,41 @@ export const authService = {
 
   // Get current user
   getCurrentUser: async (): Promise<User | null> => {
-    const auth = localStorage.getItem(STORAGE_KEY);
-    if (!auth) return null;
+    try {
+      const auth = localStorage.getItem(STORAGE_KEY);
+      if (!auth) {
+        console.log('No auth token found');
+        return null;
+      }
 
-    const { userId } = JSON.parse(auth);
-    
-    if (useDatabase()) {
-      return await dbService.getUserById(userId);
+      const authData = JSON.parse(auth);
+      const { userId } = authData;
+      
+      if (!userId) {
+        console.warn('Auth token missing userId');
+        return null;
+      }
+      
+      if (useDatabase()) {
+        const user = await dbService.getUserById(userId);
+        if (!user) {
+          console.warn('User not found in database, clearing auth');
+          localStorage.removeItem(STORAGE_KEY);
+        }
+        return user;
+      }
+      
+      // Fallback to localStorage
+      const users = getStoredUsers();
+      const userData = users.find(u => u.user.id === userId);
+      
+      return userData ? userData.user : null;
+    } catch (error) {
+      console.error('Error getting current user:', error);
+      // Clear corrupted auth data
+      localStorage.removeItem(STORAGE_KEY);
+      return null;
     }
-    
-    // Fallback to localStorage
-    const users = getStoredUsers();
-    const userData = users.find(u => u.user.id === userId);
-    
-    return userData ? userData.user : null;
   },
 
   // Sign out
