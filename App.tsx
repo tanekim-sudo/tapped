@@ -1128,7 +1128,7 @@ const App: React.FC = () => {
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="w-full p-4 border-2 border-gray-200 focus:border-[#ff4d00] outline-none text-sm"
                     />
-                    {isSearching && (
+                    {isSearching && searchQuery.length > 0 && (
                       <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
                         Searching...
                       </div>
@@ -1206,11 +1206,7 @@ const App: React.FC = () => {
 
               {searchQuery.trim() ? (
                 <div className="space-y-3">
-                  {isSearching ? (
-                    <div className="brutal-card p-12 text-center bg-gray-50">
-                      <p className="text-sm font-bold text-gray-400 italic">Searching with AI...</p>
-                    </div>
-                  ) : searchResults.length > 0 ? (
+                  {searchResults.length > 0 ? (
                     searchResults.map(result => (
                       <div key={result.user.id} className="relative">
                         <ProfileCard 
