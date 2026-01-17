@@ -235,25 +235,78 @@ const App: React.FC = () => {
       
       // Allow search even if current user has no profiles (they can still see others)
       if (!user.profiles || user.profiles.length === 0) {
-        console.warn('Current user has no profiles, but still attempting to show discovery users');
-        // Still try to show discovery users even without a profile
+        console.warn('Current user has no profiles, using AI inference for sophisticated matching');
+        setIsSearching(true);
         try {
           const allUsers = await dbService.getDiscoveryUsers(user.id);
           console.log(`Found ${allUsers.length} discovery users (current user has no profile)`);
-          // Show users even without ranking
-          setSearchResults(allUsers.map(u => ({
-            user: u,
-            relevanceScore: 50,
-            matchReasons: ['Available user'],
-            totalScore: 0.5,
-            locationScore: 0.5,
-            relevanceScoreDetailed: 0.5,
-            availabilityScore: 1.0,
-            glowTier: 'C' as const
-          })));
+          
+          // Use AI-powered inference for sophisticated matching
+          const { inferMatches } = await import('./services/inferenceService');
+          const inferred = await inferMatches(user, allUsers.filter(u => u.profiles && u.profiles.length > 0));
+          
+          console.log(`AI inferred ${inferred.length} sophisticated matches`);
+          
+          // Map inferred matches to search results with sophisticated scoring
+          setSearchResults(inferred.map(inference => {
+            const matchedUser = allUsers.find(u => u.id === inference.userId);
+            if (!matchedUser) return null;
+            
+            // Convert 0-100 score to 0-1 for consistency
+            const normalizedScore = inference.score / 100;
+            
+            // Determine glow tier based on score
+            let glowTier: 'S' | 'A' | 'B' | 'C' | 'D' = 'C';
+            if (inference.score >= 82) glowTier = 'S';
+            else if (inference.score >= 70) glowTier = 'A';
+            else if (inference.score >= 55) glowTier = 'B';
+            else if (inference.score >= 40) glowTier = 'C';
+            else glowTier = 'D';
+            
+            return {
+              user: matchedUser,
+              relevanceScore: inference.score,
+              matchReasons: inference.reasons,
+              totalScore: normalizedScore,
+              locationScore: 0.5, // Unknown without profile
+              relevanceScoreDetailed: normalizedScore * 0.9, // Slightly lower for inference
+              availabilityScore: 1.0,
+              glowTier
+            };
+          }).filter((r): r is NonNullable<typeof r> => r !== null));
         } catch (err) {
-          console.error('Error loading users without profile:', err);
-          setSearchResults([]);
+          console.error('Error with AI inference, using fallback:', err);
+          // Fallback to basic ranking
+          try {
+            const allUsers = await dbService.getDiscoveryUsers(user.id);
+            const usersWithProfiles = allUsers.filter(u => u.profiles && u.profiles.length > 0);
+            const { inferMatches } = await import('./services/inferenceService');
+            // Use fallback inference
+            const inferred = await inferMatches(user, usersWithProfiles);
+            setSearchResults(inferred.map(inference => {
+              const matchedUser = usersWithProfiles.find(u => u.id === inference.userId);
+              if (!matchedUser) return null;
+              const normalizedScore = inference.score / 100;
+              let glowTier: 'S' | 'A' | 'B' | 'C' | 'D' = 'C';
+              if (inference.score >= 82) glowTier = 'S';
+              else if (inference.score >= 70) glowTier = 'A';
+              else if (inference.score >= 55) glowTier = 'B';
+              else if (inference.score >= 40) glowTier = 'C';
+              return {
+                user: matchedUser,
+                relevanceScore: inference.score,
+                matchReasons: inference.reasons,
+                totalScore: normalizedScore,
+                locationScore: 0.5,
+                relevanceScoreDetailed: normalizedScore * 0.9,
+                availabilityScore: 1.0,
+                glowTier
+              };
+            }).filter((r): r is NonNullable<typeof r> => r !== null));
+          } catch (fallbackErr) {
+            console.error('Fallback inference also failed:', fallbackErr);
+            setSearchResults([]);
+          }
         } finally {
           setIsSearching(false);
         }

@@ -354,6 +354,31 @@ export const rankSearchResults = (
           allReasons.push(`Nearby (${Math.round(distance)}km)`);
         }
       }
+      
+      // Add quality signals to reasons
+      if (candidate.stats.followThroughRate >= 95) {
+        allReasons.push('Exceptional reliability');
+      } else if (candidate.stats.followThroughRate >= 85) {
+        allReasons.push('High reliability');
+      }
+      
+      if (candidate.stats.peopleHelped >= 50) {
+        allReasons.push('Active connector');
+      } else if (candidate.stats.peopleHelped >= 20) {
+        allReasons.push('Engaged networker');
+      }
+      
+      // Profile completeness indicator
+      const profileCompleteness = [
+        candidateProfile.industry,
+        candidateProfile.topics?.length,
+        candidateProfile.activeSignal,
+        candidateProfile.location
+      ].filter(Boolean).length;
+      
+      if (profileCompleteness >= 4) {
+        allReasons.push('Complete profile');
+      }
 
       return {
         user: candidate,
