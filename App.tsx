@@ -1270,17 +1270,17 @@ const App: React.FC = () => {
                         )}
                       </div>
                     ))
-                  ) : (
-                    <div className="brutal-card p-12 text-center bg-gray-50">
-                      <p className="text-sm font-bold text-gray-400 italic">
-                        {searchResults.length === 0 
-                          ? 'Searching and ranking all available users...' 
-                          : 'No matches found. Try a different search term.'}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              ) : (
+                ) : (
+                  <div className="brutal-card p-12 text-center bg-gray-50">
+                    <p className="text-sm font-bold text-gray-400 italic">
+                      No users found. Try adjusting your filters.
+                    </p>
+                  </div>
+                )}
+              </div>
+              
+              {/* Recommendations section - hidden for now, showing all users instead */}
+              {false && recommendations.length > 0 && (
                 <div className="space-y-6">
                   {recommendations.length > 0 && (
                     <div>
