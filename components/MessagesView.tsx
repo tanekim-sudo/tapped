@@ -19,6 +19,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({
   discoveryUsers = [],
   onSelectChat,
   selectedChat,
+  onSendMessage,
   currentUser,
   activeProfileId
 }) => {
@@ -195,7 +196,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({
             discoveryUsers={safeDiscoveryUsers}
             currentUser={currentUser}
             onClose={() => onSelectChat(null as any)}
-            onSendMessage={onSendMessage || (async () => {})}
+            onSendMessage={onSendMessage}
           />
         </div>
       )}
