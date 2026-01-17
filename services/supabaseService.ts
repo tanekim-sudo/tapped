@@ -190,6 +190,8 @@ export const dbService = {
           id: p.id,
           user_id: user.id,
           type: p.type,
+          private_name: p.privateName || null,
+          bio: p.bio || '',
           industry: p.industry || null,
           topics: p.topics || [],
           availability_rules: p.availabilityRules || null,
@@ -201,7 +203,10 @@ export const dbService = {
           response_reliability: p.responseReliability !== undefined ? p.responseReliability : 100,
           active_signal: p.activeSignal || null,
           photo: p.photo || null,
-          is_active: p.isActive !== undefined ? p.isActive : true
+          is_active: p.isActive !== undefined ? p.isActive : true,
+          connection_limit: p.connectionLimit || null,
+          weekly_credits: p.weeklyCredits || null,
+          qualification_questions: p.qualificationQuestions || null
         }));
         
         const { error: profilesError } = await supabase
@@ -258,16 +263,23 @@ export const dbService = {
             id: p.id,
             user_id: userId,
             type: p.type,
-            bio: p.bio,
+            private_name: p.privateName || null,
+            bio: p.bio || '',
             industry: p.industry || null,
             topics: p.topics || [],
             availability_rules: p.availabilityRules || null,
             location: p.location || null,
-            latitude: p.latitude || null,
-            longitude: p.longitude || null,
+            latitude: p.latitude !== undefined && p.latitude !== null ? p.latitude : null,
+            longitude: p.longitude !== undefined && p.longitude !== null ? p.longitude : null,
             open_to: p.openTo || [],
+            response_reliability: p.responseReliability !== undefined ? p.responseReliability : 100,
+            active_signal: p.activeSignal || null,
             photo: p.photo || null,
-            is_active: p.isActive !== undefined ? p.isActive : true
+            is_active: p.isActive !== undefined ? p.isActive : true,
+            is_available: p.isAvailable !== undefined ? p.isAvailable : true,
+            connection_limit: p.connectionLimit || null,
+            weekly_credits: p.weeklyCredits || null,
+            qualification_questions: p.qualificationQuestions || null
           }));
           
           const { error: profilesError } = await supabase

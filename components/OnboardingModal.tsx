@@ -34,6 +34,7 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, userName 
       id: `profile_${Date.now()}`,
       type: ContextType.FOUNDER, // Default type
       privateName: profileName.trim() || undefined, // Private name (customizable, not shown to others)
+      bio: '', // Empty bio initially (replaced by activeSignal in new design)
       industry: industry.trim(),
       topics,
       availabilityRules: '',
@@ -42,7 +43,8 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, userName 
       longitude,
       openTo: ['advice', 'intros', 'chats'], // Default open to all
       responseReliability: 100, // Start at 100%
-      isActive: true
+      isActive: true,
+      isAvailable: true // Everyone is assumed available
     };
     onComplete(profile);
   };

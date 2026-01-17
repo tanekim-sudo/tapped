@@ -630,8 +630,22 @@ const App: React.FC = () => {
       setUser(updated);
       setActiveProfileId(profile.id);
       
-      // Save to database
-      await authService.updateUser(user.id, updated);
+      // Save to database - this is critical!
+      console.log('Saving profile to database:', profile.id);
+      const savedUser = await authService.updateUser(user.id, updated);
+      if (savedUser) {
+        console.log('Profile saved successfully, reloading user from DB');
+        // Reload user from database to ensure we have the latest data
+        const reloadedUser = await authService.getCurrentUser();
+        if (reloadedUser) {
+          setUser(reloadedUser);
+          if (reloadedUser.profiles.length > 0) {
+            setActiveProfileId(reloadedUser.profiles[0].id);
+          }
+        }
+      } else {
+        console.error('Failed to save profile to database');
+      }
       await dataService.addDiscoveryUser(updated);
       
       // Mark onboarding as complete
