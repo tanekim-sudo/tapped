@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ContextType, ContextProfile } from '../types';
+import LocationPicker from './LocationPicker';
 
 interface OnboardingModalProps {
   onComplete: (profile: ContextProfile) => void;
@@ -36,7 +37,9 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, userName 
       industry: industry.trim(),
       topics,
       availabilityRules: '',
-      location: '',
+      location: location.trim(),
+      latitude,
+      longitude,
       openTo: ['advice', 'intros', 'chats'], // Default open to all
       responseReliability: 100, // Start at 100%
       isActive: true
