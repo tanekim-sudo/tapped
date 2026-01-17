@@ -214,7 +214,6 @@ const App: React.FC = () => {
           industry: searchFilters.industry,
           topic: searchFilters.topics?.join(' ') || searchQuery || undefined,
           openTo: searchFilters.openTo,
-          availability: searchFilters.availability
         });
         setSearchResults(results);
       } catch (error) {
@@ -562,7 +561,6 @@ const App: React.FC = () => {
       industry: '',
       topics: [],
       availabilityRules: '',
-      isAvailable: true,
       location: '',
       openTo: ['advice', 'intros', 'chats'],
       responseReliability: 100,
@@ -1045,25 +1043,6 @@ const App: React.FC = () => {
                       </select>
                     </div>
 
-                    {/* Availability Filter */}
-                    <div className="relative">
-                      <select
-                        value={searchFilters.availability === true ? 'available' : searchFilters.availability === false ? 'unavailable' : 'all'}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setSearchFilters(prev => ({
-                            ...prev,
-                            availability: val === 'all' ? undefined : val === 'available'
-                          }));
-                        }}
-                        className="p-2 border-2 border-gray-200 focus:border-[#ff4d00] outline-none text-xs font-bold uppercase"
-                      >
-                        <option value="all">All Availability</option>
-                        <option value="available">Available Only</option>
-                        <option value="unavailable">Unavailable Only</option>
-                      </select>
-                    </div>
-
                     {/* Open To Filter */}
                     <div className="relative">
                       <select
@@ -1086,7 +1065,7 @@ const App: React.FC = () => {
                     </div>
 
                     {/* Clear Filters */}
-                    {(searchFilters.industry || searchFilters.availability !== undefined || searchFilters.openTo?.length) && (
+                    {(searchFilters.industry || searchFilters.openTo?.length) && (
                       <button
                         onClick={() => setSearchFilters({})}
                         className="text-[8px] font-bold uppercase text-gray-400 hover:text-[#ff4d00] px-2"

@@ -18,7 +18,6 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ profile, onSave, on
   const [openTo, setOpenTo] = useState<string[]>(profile.openTo || []);
   const [openToInput, setOpenToInput] = useState('');
   const [photo, setPhoto] = useState<string>(profile.photo || '');
-  const [isAvailable, setIsAvailable] = useState(profile.isAvailable !== false);
   const [responseReliability, setResponseReliability] = useState(profile.responseReliability || 100);
   const [activeSignal, setActiveSignal] = useState(profile.activeSignal || '');
   // Connection preferences
@@ -79,7 +78,6 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ profile, onSave, on
       industry: industry.trim(),
       topics,
       availabilityRules: meetingTypes.trim(),
-      isAvailable,
       location: location.trim(),
       openTo,
       responseReliability,

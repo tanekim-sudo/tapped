@@ -92,17 +92,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                     </div>
                   )}
                   <div className="space-y-1 mt-2">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full ${p.isAvailable ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                      <span className="text-[9px] font-bold text-gray-600">
-                        {p.isAvailable ? 'Available' : 'Unavailable'}
-                      </span>
-                    </div>
-                    {p.availabilityRules && (
-                      <p className="text-[9px] font-bold text-gray-600">
-                        <span className="text-gray-400">Limits: </span>{p.availabilityRules}
-                      </p>
-                    )}
                     {p.responseReliability !== undefined && (
                       <p className="text-[9px] font-bold text-gray-600">
                         <span className="text-gray-400">Response Reliability: </span>{p.responseReliability}%

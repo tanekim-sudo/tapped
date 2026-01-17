@@ -33,7 +33,6 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, userName 
       industry: industry.trim(),
       topics,
       availabilityRules: '',
-      isAvailable: true,
       location: '',
       openTo: ['advice', 'intros', 'chats'], // Default open to all
       responseReliability: 100, // Start at 100%
