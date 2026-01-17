@@ -18,12 +18,14 @@ interface SearchFilters {
 }
 
 /**
- * Enhanced semantic search using Claude API via secure backend
+ * Enhanced semantic search with comprehensive ranking algorithm
+ * Always returns results - never empty if users exist
  */
 export const enhancedSearch = async (
   query: string,
   currentUserId: string,
-  filters?: SearchFilters
+  filters?: SearchFilters,
+  currentUserProfile?: ContextProfile // Required for ranking
 ): Promise<SearchResult[]> => {
   try {
     // Get all discovery users
@@ -31,64 +33,42 @@ export const enhancedSearch = async (
     
     if (allUsers.length === 0) return [];
 
-    // Prepare user data for Claude analysis
-    const usersData = allUsers.map(u => ({
-      id: u.id,
-      name: u.name,
-      tagline: u.tagline,
-      activeSignal: u.profiles[0]?.activeSignal || '',
-      industry: u.profiles[0]?.industry || '',
-      topics: u.profiles[0]?.topics || [],
-      location: u.profiles[0]?.location || '',
-      openTo: u.profiles[0]?.openTo || [],
-      followThroughRate: u.stats.followThroughRate || 0,
-      introducedBy: u.stats.introducedBy,
-      peopleHelped: u.stats.peopleHelped || 0
-    }));
-
-    // Call secure backend API (optional - falls back to basic search if unavailable)
-    try {
-      const response = await fetch('/api/claude-proxy', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          type: 'search',
-          query,
-          usersData,
-          filters
-        })
-      });
-
-      if (!response.ok) {
-        // Fallback to basic search
-        return basicSearch(query, currentUserId, filters);
-      }
-
-      const data = await response.json();
-      const matches = data.result || [];
+    // If we have a searcher profile, use the new ranking algorithm
+    if (currentUserProfile) {
+      const ranked = rankSearchResults(allUsers, currentUserProfile);
       
-      return matches
-        .map((match: any) => {
-          const user = allUsers.find(u => u.id === match.userId);
-          if (!user) return null;
-          
-          return {
-            user,
-            relevanceScore: match.relevanceScore || 0,
-            matchReasons: match.matchReasons || [],
-            suggestedConnectionType: match.suggestedConnectionType
-          };
-        })
-        .filter((r: any) => r !== null)
-        .sort((a: SearchResult, b: SearchResult) => b.relevanceScore - a.relevanceScore);
-    } catch (fetchError) {
-      // API not available - use basic search (silent fallback)
-      return basicSearch(query, currentUserId, filters);
+      // Convert to SearchResult format
+      return ranked.map(r => ({
+        user: r.user,
+        relevanceScore: Math.round(r.totalScore * 100), // Convert 0-1 to 0-100 for backward compatibility
+        matchReasons: r.matchReasons,
+        totalScore: r.totalScore,
+        locationScore: r.locationScore,
+        relevanceScoreDetailed: r.relevanceScore,
+        availabilityScore: r.availabilityScore,
+        glowTier: r.glowTier
+      }));
     }
+
+    // Fallback: if no profile, use basic search
+    return basicSearch(query, currentUserId, filters, allUsers);
   } catch (error) {
-    // Outer catch for any other errors
+    console.error('Search error:', error);
+    // Always return something - never empty
+    const allUsers = await dbService.getDiscoveryUsers(currentUserId);
+    if (allUsers.length > 0 && currentUserProfile) {
+      const ranked = rankSearchResults(allUsers, currentUserProfile);
+      return ranked.map(r => ({
+        user: r.user,
+        relevanceScore: Math.round(r.totalScore * 100),
+        matchReasons: r.matchReasons,
+        totalScore: r.totalScore,
+        locationScore: r.locationScore,
+        relevanceScoreDetailed: r.relevanceScore,
+        availabilityScore: r.availabilityScore,
+        glowTier: r.glowTier
+      }));
+    }
     return basicSearch(query, currentUserId, filters);
   }
 };

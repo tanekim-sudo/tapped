@@ -200,10 +200,10 @@ const App: React.FC = () => {
     saveConnections();
   }, [connections, user]);
 
-  // Enhanced unified search with filters
+  // Enhanced unified search with comprehensive ranking algorithm
   useEffect(() => {
     const performSearch = async () => {
-      if (!user || (!searchQuery.trim() && !searchFilters.industry && !searchFilters.topics?.length)) {
+      if (!user || !user.profiles || user.profiles.length === 0) {
         setSearchResults([]);
         return;
       }
@@ -211,15 +211,45 @@ const App: React.FC = () => {
       setIsSearching(true);
       try {
         const activeProfile = user.profiles.find(p => p.id === activeProfileId) || user.profiles[0];
-        const results = await enhancedSearch(searchQuery || '', user.id, {
-          industry: searchFilters.industry,
-          topic: searchFilters.topics?.join(' ') || searchQuery || undefined,
-          openTo: searchFilters.openTo,
-        }, activeProfile); // Pass current user profile for location-based ranking
-        setSearchResults(results);
+        
+        // Always use ranking algorithm - even with no query, rank all users
+        const results = await enhancedSearch(
+          searchQuery || '', 
+          user.id, 
+          {
+            industry: searchFilters.industry,
+            topic: searchFilters.topics?.join(' ') || searchQuery || undefined,
+            openTo: searchFilters.openTo,
+          }, 
+          activeProfile // Required for ranking algorithm
+        );
+        
+        // Always return results - never empty if users exist
+        setSearchResults(results.length > 0 ? results : []);
       } catch (error) {
         console.error('Search error:', error);
-        setSearchResults([]);
+        // On error, still try to get ranked results
+        try {
+          const activeProfile = user.profiles.find(p => p.id === activeProfileId) || user.profiles[0];
+          const allUsers = await dbService.getDiscoveryUsers(user.id);
+          if (allUsers.length > 0 && activeProfile) {
+            const { rankSearchResults } = await import('./services/searchRankingService');
+            const ranked = rankSearchResults(allUsers, activeProfile);
+            setSearchResults(ranked.map(r => ({
+              user: r.user,
+              relevanceScore: Math.round(r.totalScore * 100),
+              matchReasons: r.matchReasons,
+              totalScore: r.totalScore,
+              locationScore: r.locationScore,
+              relevanceScoreDetailed: r.relevanceScore,
+              availabilityScore: r.availabilityScore,
+              glowTier: r.glowTier
+            })));
+          }
+        } catch (fallbackError) {
+          console.error('Fallback ranking error:', fallbackError);
+          setSearchResults([]);
+        }
       } finally {
         setIsSearching(false);
       }
@@ -227,7 +257,7 @@ const App: React.FC = () => {
 
     const debounceTimer = setTimeout(performSearch, 300);
     return () => clearTimeout(debounceTimer);
-  }, [searchQuery, searchFilters, user]);
+  }, [searchQuery, searchFilters, user, activeProfileId]);
 
   // Get search suggestions
   useEffect(() => {
@@ -1134,19 +1164,55 @@ const App: React.FC = () => {
                           discoveryUsers={discoveryUsers}
                           connectionStatus={connectionStatuses[result.user.id] || 'NOT_CONNECTED'}
                           activeProfile={activeProfile}
+                          glowTier={result.glowTier}
+                          totalScore={result.totalScore}
                         />
-                        {result.matchReasons.length > 0 && (
+                        {/* Match Score Display */}
+                        {result.totalScore !== undefined && (
                           <div className="mt-2 p-2 bg-gray-50 border-l-2 border-[#ff4d00] text-xs">
-                            <p className="font-bold text-gray-600 mb-1">Why this match:</p>
-                            <ul className="list-disc list-inside text-gray-500 space-y-1">
-                              {result.matchReasons.map((reason, idx) => (
-                                <li key={idx}>{reason}</li>
-                              ))}
-                            </ul>
-                            {result.suggestedConnectionType && (
-                              <p className="mt-2 text-[#ff4d00] font-bold">
-                                Suggested: {result.suggestedConnectionType}
-                              </p>
+                            <div className="flex items-center justify-between mb-2">
+                              <p className="font-bold text-gray-600">Match Score: {Math.round(result.totalScore * 100)}%</p>
+                              {result.glowTier && (
+                                <span className={`text-[8px] font-black uppercase px-2 py-1 ${
+                                  result.glowTier === 'S' ? 'bg-[#ff4d00] text-white' :
+                                  result.glowTier === 'A' ? 'bg-[#ff6d33] text-white' :
+                                  result.glowTier === 'B' ? 'bg-[#ff8c66] text-white' :
+                                  result.glowTier === 'C' ? 'bg-[#ffaa99] text-white' :
+                                  'bg-gray-300 text-gray-600'
+                                }`}>
+                                  Tier {result.glowTier}
+                                </span>
+                              )}
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 text-[9px] mb-2">
+                              {result.locationScore !== undefined && (
+                                <div>
+                                  <span className="text-gray-500">Location:</span>
+                                  <span className="font-bold ml-1">{Math.round(result.locationScore * 100)}%</span>
+                                </div>
+                              )}
+                              {result.relevanceScoreDetailed !== undefined && (
+                                <div>
+                                  <span className="text-gray-500">Relevance:</span>
+                                  <span className="font-bold ml-1">{Math.round(result.relevanceScoreDetailed * 100)}%</span>
+                                </div>
+                              )}
+                              {result.availabilityScore !== undefined && (
+                                <div>
+                                  <span className="text-gray-500">Available:</span>
+                                  <span className="font-bold ml-1">{Math.round(result.availabilityScore * 100)}%</span>
+                                </div>
+                              )}
+                            </div>
+                            {result.matchReasons.length > 0 && (
+                              <div>
+                                <p className="font-bold text-gray-600 mb-1 text-[9px]">Why this match:</p>
+                                <ul className="list-disc list-inside text-gray-500 space-y-0.5 text-[9px]">
+                                  {result.matchReasons.slice(0, 3).map((reason, idx) => (
+                                    <li key={idx}>{reason}</li>
+                                  ))}
+                                </ul>
+                              </div>
                             )}
                           </div>
                         )}
@@ -1184,6 +1250,8 @@ const App: React.FC = () => {
                               discoveryUsers={discoveryUsers}
                               connectionStatus={connectionStatuses[result.user.id] || 'NOT_CONNECTED'}
                               activeProfile={activeProfile}
+                              glowTier={result.glowTier}
+                              totalScore={result.totalScore}
                             />
                             {result.matchReasons.length > 0 && (
                               <div className="mt-2 p-2 bg-gray-50 border-l-2 border-[#ff4d00] text-xs">

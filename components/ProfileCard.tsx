@@ -10,6 +10,8 @@ interface ProfileCardProps {
   onAcceptRequest?: (userId: string) => void;
   onDeclineRequest?: (userId: string) => void;
   activeProfile?: ContextProfile; // Show which profile will be used for connection
+  glowTier?: 'S' | 'A' | 'B' | 'C' | 'D'; // Match strength glow tier
+  totalScore?: number; // 0-1 total match score
 }
 
 const ProfileCard: React.FC<ProfileCardProps> = ({ 
@@ -25,8 +27,27 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
   const primaryProfile = user.profiles[0];
   const initials = user.name.split(' ').map(n => n[0]).join('');
 
+  // Get glow classes based on tier
+  const getGlowClasses = () => {
+    if (!glowTier) return 'border-gray-100 bg-white';
+    switch (glowTier) {
+      case 'S':
+        return 'border-[#ff4d00] shadow-[0_0_20px_rgba(255,77,0,0.6)] bg-gradient-to-br from-orange-50 to-orange-100';
+      case 'A':
+        return 'border-[#ff6d33] shadow-[0_0_15px_rgba(255,77,0,0.4)] bg-gradient-to-br from-orange-50/80 to-white';
+      case 'B':
+        return 'border-[#ff8c66] shadow-[0_0_10px_rgba(255,77,0,0.3)] bg-orange-50/50';
+      case 'C':
+        return 'border-[#ffaa99] shadow-[0_0_5px_rgba(255,77,0,0.2)] bg-orange-50/30';
+      case 'D':
+        return 'border-gray-200 bg-white';
+      default:
+        return 'border-gray-100 bg-white';
+    }
+  };
+
   return (
-    <div className="brutal-card p-5 mb-3 bg-white hover:bg-gray-50/50 flex flex-col sm:flex-row gap-6 items-center border-gray-100">
+    <div className={`brutal-card p-5 mb-3 hover:bg-gray-50/50 flex flex-col sm:flex-row gap-6 items-center transition-all ${getGlowClasses()}`}>
       <div className="flex-grow w-full">
         <div className="flex items-center gap-3 mb-3">
           {primaryProfile?.photo ? (
