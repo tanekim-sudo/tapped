@@ -1204,9 +1204,13 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              {searchQuery.trim() ? (
-                <div className="space-y-3">
-                  {searchResults.length > 0 ? (
+              {/* Always show results - search is optional */}
+              <div className="space-y-3">
+                {isSearching && searchResults.length === 0 ? (
+                  <div className="brutal-card p-12 text-center bg-gray-50">
+                    <p className="text-sm font-bold text-gray-400 italic">Loading users...</p>
+                  </div>
+                ) : searchResults.length > 0 ? (
                     searchResults.map(result => (
                       <div key={result.user.id} className="relative">
                         <ProfileCard 
@@ -1280,7 +1284,7 @@ const App: React.FC = () => {
               </div>
               
               {/* Recommendations section - hidden for now, showing all users instead */}
-              {false && recommendations.length > 0 && (
+              {false && (
                 <div className="space-y-6">
                   {recommendations.length > 0 && (
                     <div>
